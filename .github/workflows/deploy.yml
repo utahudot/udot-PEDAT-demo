@@ -1,0 +1,114 @@
+name: Cloud deployment
+
+on:
+  push:
+    branches:
+      - beta
+
+concurrency:
+  group: "${{ github.head_ref || github.ref }}"
+  cancel-in-progress: true
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  env:
+    name: Set Env Vars
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set up DEV Environment Variables
+        if: github.ref == 'refs/heads/beta'
+        run: |
+          matrix='{
+            "env":[
+              {
+                "environment_name":"dev"
+              }
+            ]
+          }'
+          echo matrix=`echo $matrix | jq -c .` >> $GITHUB_ENV
+      - name: Set up PRD Environment Variables
+        if: github.ref == 'refs/heads/main'
+        run: |
+          matrix='{
+            "env":[
+              {
+                "environment_name":"prod"
+              }
+            ]
+          }'
+          echo matrix=`echo $matrix | jq -c .` >> $GITHUB_ENV
+    outputs:
+      matrix: ${{ env.matrix }}
+
+  deploy:
+    name: Development Deployment Job
+    runs-on: ubuntu-latest
+    needs: env
+    strategy:
+      fail-fast: false
+      matrix: ${{fromJson(needs.env.outputs.matrix)}}
+    environment:
+      name: ${{ matrix.env.environment_name }}
+
+    steps:
+      - name: ⬇️ Set up code
+        uses: actions/checkout@v3
+
+      - name: 🗝️ Authenticate to Google Cloud
+        id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          create_credentials_file: true
+          token_format: access_token
+          workload_identity_provider: ${{ secrets.IDENTITY_PROVIDER }} # TODO SETUP ENV SECRETS
+          service_account: ${{ secrets.SERVICE_ACCOUNT_EMAIL }} # TODO SETUP ENV SECRETS
+
+      - name: 🐳 Set up Docker Buildx
+        id: builder
+        uses: docker/setup-buildx-action@v3
+
+      - name: 🗝️ Authenticate Docker to Google Cloud
+        uses: docker/login-action@v3
+        with:
+          registry: us-west3-docker.pkg.dev
+          username: oauth2accesstoken
+          password: ${{ steps.auth.outputs.access_token }}
+
+      - name: 🏷️ Extract tags from GitHub
+        id: meta
+        uses: docker/metadata-action@v3
+        with:
+          images: us-west3-docker.pkg.dev/${{ secrets.PROJECT_ID }}/${{ secrets.GCP_ARTIFACT_REPO }}/pedat
+          tags: |
+            type=ref,suffix=-{{sha}},event=branch
+            type=ref,prefix=pr-,suffix=-{{sha}},event=pr
+            type=semver,pattern={{version}}
+            latest
+
+      - name: 📦 Build and push image
+        uses: docker/build-push-action@v3
+        with:
+          builder: ${{ steps.builder.outputs.name }}
+          tags: ${{ steps.meta.outputs.tags }}
+          context: .
+          push: true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: 🚀 Deploy to Cloud Run # TODO: Test in GHA
+        id: deploy
+        uses: google-github-actions/deploy-cloudrun@v2.2.0
+        with:
+          service: pedat-${{ matrix.env.environment_name }}
+          image: us-west3-docker.pkg.dev/${{ secrets.PROJECT_ID }}/${{ secrets.GCP_ARTIFACT_REPO }}/pedat # TODO: Ingress?
+          region: us-west3
+          flags: |
+            --max-instances=1
+            --concurrency=1
+            --cpu=1
+            --memory=512Mi
+            --timeout=3m
+            --service-account=${{secrets.RUN_SA}}
