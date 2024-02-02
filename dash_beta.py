@@ -66,7 +66,7 @@ pio.kaleido.scope.default_scale = 2
 # credentials = service_account.Credentials.from_service_account_info(
 #     st.secrets["gcp_service_account"]
 # )
-client = bigquery.Client(project="ut-udot-pedat-dev")  # credentials=credentials
+client = bigquery.Client()  # credentials=credentials
 
 # Define SQL query to retrieve the data from BigQuery
 sql_query = """
