@@ -30,4 +30,7 @@
   "forwardPorts": [
     8501
   ]
+  "mounts": [
+    "source=${localEnv:HOME}${localEnv:USERPROFILE}/.config/gcloud,target=/home/vscode/.config/gcloud,type=bind,consistency=cached"
+  ]
 }

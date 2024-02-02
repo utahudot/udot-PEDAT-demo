@@ -63,24 +63,24 @@ pio.kaleido.scope.default_scale = 2
 
 
 # Create API client.
-credentials = service_account.Credentials.from_service_account_info(
-    st.secrets["gcp_service_account"]
-)
-client = bigquery.Client(credentials=credentials)
+# credentials = service_account.Credentials.from_service_account_info(
+#     st.secrets["gcp_service_account"]
+# )
+client = bigquery.Client()  # credentials=credentials
 
 # Define SQL query to retrieve the data from BigQuery
 sql_query = """
 SELECT *
-FROM `decent-digit-387716.pedat_dataset.map_data`
+FROM `ut-udot-pedat-dev.pedat_dataset.map_data`
 """
 sql_query2 = """
 SELECT *
-FROM `decent-digit-387716.pedat_dataset.pedatutah`
+FROM `ut-udot-pedat-dev.pedat_dataset.pedatutah`
 WHERE ADDRESS IN UNNEST(@selected_signals)
 """
 sql_query3 = """
 SELECT *
-FROM `decent-digit-387716.pedat_dataset.pedatdaily`
+FROM `ut-udot-pedat-dev.pedat_dataset.pedatdaily`
 WHERE ADDRESS IN UNNEST(@selected_signals)
 """
 
