@@ -109,6 +109,6 @@ jobs:
             --max-instances=1
             --concurrency=1
             --cpu=2
-            --memory=1G
+            --memory=4G
             --timeout=3m
             --service-account=${{secrets.RUN_SA}}
