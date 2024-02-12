@@ -106,8 +106,8 @@ jobs:
           image: us-west3-docker.pkg.dev/${{ secrets.PROJECT_ID }}/${{ secrets.GCP_ARTIFACT_REPO }}/pedat # TODO: Ingress?
           region: us-west3
           flags: |
-            --max-instances=1
-            --concurrency=1
+            --max-instances=3
+            --concurrency=25
             --cpu=2
             --memory=4G
             --timeout=3m
