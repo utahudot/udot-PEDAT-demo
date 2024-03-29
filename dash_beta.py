@@ -728,7 +728,9 @@ def main():
     with expander2:
         expander2.write('''
                 First, use the map to select or search for specific location(s) with available data. Second, a particular type of data (recent or historical). Third, select parameters (dates, location and time units). Fourth, view the results as averages, figures, a map, data, or a report. 
+                
         ''')
+        expander2.write(f'[**PEDAT User Guide**](https://usu-my.sharepoint.com/:b:/g/personal/a02347157_aggies_usu_edu/Echmn2nMMtdItMHwkwxQ6C8BEIagmAfCggPTA2DOrMExuA?e=0QHiQh)')
     
     st.sidebar.markdown("[Step 1: Select location(s)](#step-1-select-location-s)")
     st.subheader('Step 1: Select location(s)')
