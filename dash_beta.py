@@ -1,7 +1,7 @@
 # Pedestrian Volume Data Visualization Dashboard (PEDAT)
 # Author:   Amir Rafe (amir.rafe@usu.edu)
 # File:     dash_beta.py
-# Version:  1.0.9-beta  
+# Version:  1.0.10-beta  
 # About:    A streamlit webapp to visualize pedestrian volum data in Utah
 
 # Streamlit for web app functionality
@@ -23,7 +23,7 @@ import plotly.io as pio
 import matplotlib.pyplot as plt
 import matplotlib.colors
 import folium
-from folium.plugins import Draw, MarkerCluster, Search
+from folium.plugins import Draw, MarkerCluster, Search, FastMarkerCluster
 from keplergl import KeplerGl
 import pydeck as pdk
 
@@ -728,35 +728,62 @@ def main():
     with expander2:
         expander2.write('''
                 First, use the map to select or search for specific location(s) with available data. Second, a particular type of data (recent or historical). Third, select parameters (dates, location and time units). Fourth, view the results as averages, figures, a map, data, or a report. 
+                
         ''')
+        expander2.write(f'[**PEDAT User Guide**](https://usu-my.sharepoint.com/:b:/g/personal/a02347157_aggies_usu_edu/Echmn2nMMtdItMHwkwxQ6C8BEIagmAfCggPTA2DOrMExuA?e=0QHiQh)')
     
     st.sidebar.markdown("[Step 1: Select location(s)](#step-1-select-location-s)")
-    st.subheader('Step 1: Select location(s)')
-
+    st.subheader('Step 1: Select location(s) and data type')
+    
     # Read the data
     df3 = pd.read_json('data/updated_mapdata.json')
 
     # Create a list of cities and counties
-    locations = sorted(df3['CITY'].unique().tolist() + df3['County'].unique().tolist())
+    locations = ["All"] + sorted(df3['CITY'].unique().tolist() + df3['County'].unique().tolist())
 
     # Create a multiselect box for selecting cities or counties
-    selected_location = st.multiselect('**Select 1+ counties and/or cities**', locations, default=["Salt Lake City"])
+    selected_location = st.multiselect('**Select 1+ counties and/or cities**', locations, default=["All"])
+
+    # Filter the data based on the selected cities or counties
+    if "All" in selected_location:
+        selected_data = df3
+    else:
+        selected_data = df3[(df3['CITY'].isin(selected_location)) | (df3['County'].isin(selected_location))]
 
     # Check if the list is empty before accessing it
     if selected_location:  
-        default_address = selected_location[0]
-        selected_data = df3[(df3['CITY'].isin(selected_location)) | (df3['County'].isin(selected_location))] 
-        # Compute the mean latitude and longitude of the selected cities
         mean_lat = selected_data['LAT'].mean()
         mean_lng = selected_data['LON'].mean()
         df3 = selected_data
         a = df3['ADDRESS'].tolist()
         default_address = [a[1]]
-        icon_image = 'images/ts.png'
-        icon_size = (7, 14) 
+        icon_image = 'images/ts_small.png'
+        icon_size = (7, 14)
 
-        # Create the map object
-        m = folium.Map(location=[mean_lat,mean_lng], zoom_start=8 , tiles = 'https://api.mapbox.com/styles/v1/bashasvari/clhgx1yir00h901q1ecbt9165/tiles/256/{z}/{x}/{y}@2x?access_token=pk.eyJ1IjoiYmFzaGFzdmFyaSIsImEiOiJjbGVmaTdtMmIwcXkzM3Jxam9hb2pwZ3BoIn0.JmYank8e3bmQ7RmRiVdTIg' , attr='PEDAT map')
+        # Create a custom TileLayer
+        pedat_tiles = folium.TileLayer(
+            tiles='https://api.mapbox.com/styles/v1/bashasvari/clhgx1yir00h901q1ecbt9165/tiles/256/{z}/{x}/{y}@2x?access_token=pk.eyJ1IjoiYmFzaGFzdmFyaSIsImEiOiJjbGVmaTdtMmIwcXkzM3Jxam9hb2pwZ3BoIn0.JmYank8e3bmQ7RmRiVdTIg',
+            attr='PEDAT map',
+            name='PEDAT',
+            overlay=False,
+            control=True
+        )
+        Satellite  = folium.TileLayer(
+            tiles='https://api.mapbox.com/styles/v1/bashasvari/cluvp5mkm000i01og0rbcgwmf/tiles/256/{z}/{x}/{y}@2x?access_token=pk.eyJ1IjoiYmFzaGFzdmFyaSIsImEiOiJjbGVmaTdtMmIwcXkzM3Jxam9hb2pwZ3BoIn0.JmYank8e3bmQ7RmRiVdTIg',
+            attr='Satellite',
+            name='Satellite Map',
+            overlay=False,
+            control=True
+        )
+        # Create the map with PEDAT as the default visible layer
+        m = folium.Map(location=[mean_lat, mean_lng], zoom_start=8, tiles=None)
+
+        # Add the PEDAT layer and show it by default
+        pedat_tiles.add_to(m)
+        Satellite.add_to(m)
+        # Adding other tile layers but not showing them by default
+        folium.TileLayer('OpenStreetMap', name='Open Street Map', overlay=False, control=True).add_to(m)
+        folium.TileLayer('CartoDB dark_matter', name='CartoDB Dark Matter', overlay=False, control=True).add_to(m)
 
         # Convert dataFrame to GeoJSON format
         geo_data = df3[["LAT", "LON", "ADDRESS"]].copy()
@@ -778,7 +805,7 @@ def main():
 
         # Create the invisible GeoJson layer for search functionality
         geo_layer = folium.GeoJson(geo_json ,
-        marker=folium.CircleMarker(radius=0.00000000000000000001, color="white",opacity=7)).add_to(m)
+        marker=folium.CircleMarker(radius=0.00000000000000000001, color=None ,opacity=7), control=False).add_to(m)
         search = Search(
             layer=geo_layer,
             geom_type="Point",
@@ -787,14 +814,30 @@ def main():
             search_label="address"
         ).add_to(m)
 
+        
+        df3['Address'] = df3['ADDRESS'].str.replace(r'^\d+\s*--\s*', '', regex=True)
         # Add custom icons
-        for index, row in df3.iterrows():
-            folium.Marker(
-                location=(row['LAT'], row['LON']),
-                popup=folium.Popup(row['ADDRESS'], max_width=300, min_width=150),
-                tooltip=row['ADDRESS'],
-                icon=folium.CustomIcon(icon_image, icon_size)
-            ).add_to(m)
+        callback = """
+        function (row) {
+            var icon, marker, popupContent;
+            icon = L.AwesomeMarkers.icon({
+                icon: 'fa-traffic-light', 
+                
+                prefix: 'fa', 
+                
+            });
+            marker = L.marker(new L.LatLng(row[0], row[1]), {icon: icon});
+            popupContent = '<b>Signal ID:</b> ' + row[3]  + '<br>' + '<b>Address:</b> ' + row[2];
+            marker.bindPopup(popupContent, {maxWidth: 300, minWidth: 150});
+            return marker;
+        };
+        """
+
+        # Prepare your data list, with latitude, longitude, and popup content (address)
+        data = list(zip(df3['LAT'], df3['LON'], df3['Address'] , df3['SIGNAL']))
+
+        # Use FastMarkerCluster with the callback
+        FastMarkerCluster(data=data, callback=callback , control=False).add_to(m)
 
         Draw(
             export=False,
@@ -815,647 +858,644 @@ def main():
         ne = df3[['LAT', 'LON']].max().values.tolist()
         m.fit_bounds([sw, ne]) 
 
+        if 'selected_addresses' not in st.session_state:
+            st.session_state.selected_addresses = []
+
+        if 'selected_signals' not in st.session_state:
+            st.session_state.selected_signals = []
+
         # Render the map using st_folium
+        folium.LayerControl().add_to(m)
         s = st_folium(m, width='80%', height=600, returned_objects=["last_object_clicked", "last_active_drawing"])
-
-        # Check if the JSON object is not None
-        if s is not None and "last_object_clicked" in s and s["last_object_clicked"] is not None:
-            json_obj = s["last_object_clicked"]
-            lat = json_obj["lat"]
-            lng = json_obj["lng"]
-
-            # Filter the dataframe based on the lat and lng values
-            filtered_df = df3[(df3['LAT'] == lat) & (df3['LON'] == lng)]
-
-            # Print the 'ADDRESS' value for each row in the filtered dataframe
-            for index, row in filtered_df.iterrows():
-                address.append(row['ADDRESS'])
-
-            selected_signals = st.multiselect('**Selected location(s)**', a , default = address)
-        elif s is not None and "last_active_drawing" in s and s["last_active_drawing"] is not None:
-            # A polygon has been drawn on the map
-            polygon_coords = s["last_active_drawing"]["geometry"]["coordinates"]
-            polygon = Polygon(polygon_coords[0])
-
-            # Create an empty list to hold the selected addresses
-            selected_addresses = []
-
-            # Iterate through each row of the dataframe and check if its address falls within the polygon
-            for index, row in df3.iterrows():
-                point = Point(row['LON'], row['LAT'])
-                if polygon.contains(point):
-                    selected_addresses.append(row['ADDRESS'])
-
-            selected_signals = st.multiselect('**Selected location(s)**', a, default=selected_addresses)
-        else:
-            selected_signals = st.multiselect('**Selected location(s)**', a , default = address)
-    
-        if "All" in selected_signals:
-            selected_signals = df3['ADDRESS'].unique().tolist()
-
-        font_css = """
-        <style>
-        button[data-baseweb="tab"] > div[data-testid="stMarkdownContainer"] > p {
-        font-size: 20px;
-        }
-        </style>
-        """
-        st.write(font_css, unsafe_allow_html=True)
         
-        st.markdown(
-            """<style>
-        div[class*="stMultiSelect"] > label > div[data-testid="stMarkdownContainer"] > p {
-            font-size: 16px;
-        }
-            </style>
-            """, unsafe_allow_html=True)
-        
-        st.markdown(
-            """<style>
-        div[class*="stSelectbox"] > label > div[data-testid="stMarkdownContainer"] > p {
-            font-size: 16px;
-        }
-            </style>
-            """, unsafe_allow_html=True)
-        # Check if selected_signals is empty
-        if not selected_signals:
-            # If selected_signals is empty, return an empty dataframe
-            return pd.DataFrame()
-
-        job_config = bigquery.QueryJobConfig(
-        query_parameters=[
-            bigquery.ArrayQueryParameter(
-                "selected_signals", "STRING", selected_signals
-            )
-        ]
-        )
-
-        st.sidebar.markdown("[Step 2: Select data type](#step-2-select-data-type)")
-        st.subheader('Step 2: Select data type')
-        dash = ['Recent data (last 1 year)' , 'Historical data (last 5 years)']
-        Dash_selected = st.selectbox('**Select data type**', options=dash)
-
-        # Add a subtitle to the sidebar
-        if Dash_selected == 'Recent data (last 1 year)':
-            df = client.query(sql_query2, job_config=job_config).to_dataframe()
-            unique_signals = df['SIGNAL'].unique().tolist()
-            color_map = create_color_map(unique_signals)
-        else:
-            df = client.query(sql_query3, job_config=job_config).to_dataframe()
-            df['TIME1'] = pd.to_datetime(df['TIME1'])
-            unique_signals = df['SIGNAL'].unique().tolist()
-            color_map = create_color_map(unique_signals)
-
-        # Create a list of all unique values in the 'ADDRESS' column of the DataFrame
-        all_addresses = df3['ADDRESS'].tolist()
-
-        # Check if selected_signals is not empty
-        if selected_signals:
-            # If selected_signals is not empty, filter the list of all_addresses to include only the selected signals
-            addresses_to_keep = set(selected_signals).intersection(set(all_addresses))
-            all_addresses = list(addresses_to_keep)
-
-        st.markdown(
-            """<style>
-        div[class*="stColumn"] > label > div[data-testid="stMarkdownContainer"] > p {
-            font-size: 32px;
-        }
-            </style>
-            """, unsafe_allow_html=True)
-
-        st.sidebar.markdown("[Step 3: Select parameters](#step-3-select-parameters)")
-        st.subheader('Step 3: Select parameters')
-        form = st.form("sidebar")
-        
-        # Add a calendar widget to select a date range
-        start_date = form.date_input('**Start date**', df['TIME1'].min())
-        end_date = form.date_input('**End date**', df['TIME1'].max())
-
-        # Add a slider for selecting the aggregation method
-        if Dash_selected == 'Recent data (last 1 year)':
-            locations = ['All'] + ['Phase ' + str(int(i)) for i in sorted(df[df['ADDRESS'].isin(all_addresses)]['P'].dropna().unique().tolist())]
-            #locations = ['All'] + ['Phase ' + str(int(i)) for i in sorted(df['P'].dropna().unique().tolist())]
-            location_selected = form.selectbox('**Location unit**', options=locations)
-            aggregation_methods = ['Hour', 'Day', 'Week', 'Month', 'Year']
-            aggregation_method_selected = form.selectbox('**Time unit**', options=aggregation_methods)      
-        else:
-            aggregation_methods = ['Day', 'Week', 'Month', 'Year']
-            aggregation_method_selected = form.selectbox('**Time unit**', options=aggregation_methods)
-            location = ['All']
-            location_selected = location[0]
-        
-        st.markdown(
-            """<style>
-        div[class*="stSlider"] > label > div[data-testid="stMarkdownContainer"] > p {
-            font-size: 16px;
-        }
-            </style>
-            """, unsafe_allow_html=True)
-
-        form.form_submit_button("Submit")
-        
-        # Convert the date objects to datetime objects
-        start_datetime = datetime.combine(start_date, datetime.min.time())
-        end_datetime = datetime.combine(end_date, datetime.max.time())
-        dt_str = start_date.strftime("%b %d, %Y")
-        dt_str2 = end_date.strftime("%b %d, %Y")
-
-        # Format the metric values
-        total_pedestrians = df['PED'].sum()
-        num_signals = len(df['ADDRESS'].unique())
-        total_pedestrians_formatted = format_metric(total_pedestrians)
-        num_signals_formatted = format_metric(num_signals)
-        st.sidebar.markdown("[Metrics](#metrics)")
-        st.subheader('**Metrics**')
-        col1, col2 , col3 , col4= st.columns(4)
-
-        # Display the metric boxes
-        col1.metric("**Total pedestrians**", total_pedestrians_formatted)
-        col2.metric("**Selected locations**", num_signals_formatted)
-        col3.metric("**Start date**" , dt_str)
-        col4.metric("**End date**" , dt_str2)
-
-        # If "All" is selected, show all signals
-        if "All" in selected_signals:
-            selected_signals = df3['ADDRESS'].tolist()
-        else:
-            selected_signals = selected_signals or default_address
-
-        # Averages section
-        st.sidebar.markdown("[Averages](#averages)")
-        st.subheader('**Averages**')
-        with st.expander("Expand"):
-            if Dash_selected == 'Recent data (last 1 year)':
-                st.subheader('Average daily pedestrian activity, by location')
-                fig16, df_agg16 = make_bar_chart4(df, selected_signals, start_datetime, end_datetime, location_selected, Dash_selected, color_map)
-                cv16 = df_agg16.to_csv(index=True)
-                st.download_button(
-                    label="📥 Download data",
-                    data=cv16,
-                    file_name="barchart_daily_location.csv",
-                    mime='text/csv',
-                )
-                st.plotly_chart(fig16, use_container_width=True )
-
-                st.subheader('Average hourly pedestrian activity, by hour-of-day, total of all locations')
-                fig2, df_agg3 = make_bar_chart(df, selected_signals, start_datetime, end_datetime, location_selected, Dash_selected)
-                cv3 = df_agg3.to_csv(index=True)
-                st.download_button(
-                    label="📥 Download data",
-                    data=cv3,
-                    file_name="barcharthourly.csv",
-                    mime='text/csv',
-                )
-                st.plotly_chart(fig2, use_container_width=True )
-
-                st.subheader('Average daily pedestrian activity, by day-of-week, total of all locations')
-                fig3 , df_agg4= make_bar_chart2(df, selected_signals, start_datetime, end_datetime, location_selected, Dash_selected)
-                cv4 = df_agg4.to_csv(index=True)
-                st.download_button(
-                    label="📥 Download data",
-                    data=cv4,
-                    file_name="barchartdaily.csv",
-                    mime='text/csv',
-                )
-                st.plotly_chart(fig3, use_container_width=True )
-
-                st.subheader('Average daily pedestrian activity, by month-of-year, total of all locations')
-                fig8 , df_agg5= make_bar_chart3(df, selected_signals, start_datetime, end_datetime, location_selected, Dash_selected)
-                cv5 = df_agg5.to_csv(index=True)
-                st.download_button(
-                    label="📥 Download data",
-                    data=cv5,
-                    file_name="barchartmonthly.csv",
-                    mime='text/csv',
-                )
-                st.plotly_chart(fig8, use_container_width=True )
-
+        # Function to add or update the selected addresses based on map interaction
+        def add_selected_address(lat, lng, polygon=None):
+            if polygon is not None:
+                for index, row in df3.iterrows():
+                    point = Point(row['LON'], row['LAT'])
+                    if polygon.contains(point) and row['ADDRESS'] not in st.session_state.selected_addresses:
+                        st.session_state.selected_addresses.append(row['ADDRESS'])
             else:
-                st.subheader('Average daily pedestrian activity, by location')
-                fig16, df_agg16 = make_bar_chart4(df, selected_signals, start_datetime, end_datetime, location_selected, Dash_selected, color_map)
-                cv16 = df_agg16.to_csv(index=True)
-                st.download_button(
-                    label="📥 Download data",
-                    data=cv16,
-                    file_name="barchart_daily_location.csv",
-                    mime='text/csv',
-                )
-                st.plotly_chart(fig16, use_container_width=True )
+                filtered_df = df3[(df3['LAT'] == lat) & (df3['LON'] == lng)]
+                for index, row in filtered_df.iterrows():
+                    if row['ADDRESS'] not in st.session_state.selected_addresses:
+                        st.session_state.selected_addresses.append(row['ADDRESS'])
+
+        # Check if a location or a polygon has been selected on the map
+        if s is not None:
+            if "last_object_clicked" in s and s["last_object_clicked"] is not None:
+                json_obj = s["last_object_clicked"]
+                add_selected_address(json_obj["lat"], json_obj["lng"])
+            elif "last_active_drawing" in s and s["last_active_drawing"] is not None:
+                polygon_coords = s["last_active_drawing"]["geometry"]["coordinates"]
+                polygon = Polygon(polygon_coords[0])
+                add_selected_address(None, None, polygon)
+
+        selected_signals =[]
+        # Form for finalizing the selection of addresses
+        with st.form("selected_locations_form"):
+            if st.session_state.selected_addresses == []:
+                st.warning('Please select at least one location.')
+            else:
+                st.write("**Review and select the locations**")
+            # Dynamically create a checkbox for each selected address
+            for address in st.session_state.selected_addresses:
+                if st.checkbox(address, key=address, value=True):
+                    pass
             
-                st.subheader('Average daily pedestrian activity, by day-of-week, total of all locations')
-                fig3 , df_agg4= make_bar_chart2(df, selected_signals, start_datetime, end_datetime, location_selected, Dash_selected)
-                cv4 = df_agg4.to_csv(index=True)
-                st.download_button(
-                    label="📥 Download data",
-                    data=cv4,
-                    file_name="barchartdaily.csv",
-                    mime='text/csv',
-                )
-                st.plotly_chart(fig3, use_container_width=True )
+            if st.session_state.selected_addresses != []:
+                dash = ['Recent data (last 1 year)' , 'Historical data (last 5 years)']
+                Dash_selected = st.selectbox('**Select data type**', options=dash)
+            # Submit button for the form
+            submitted = st.form_submit_button("Submit")
+            if submitted:
+                # Filter the selected addresses based on checkboxes that are ticked
+                selected_signals = [address for address in st.session_state.selected_addresses if st.session_state[address]]
+                st.session_state.selected_signals = selected_signals
+                #st.session_state.selected_addresses = []
 
-                st.subheader('Average daily pedestrian activity, by month-of-year, total of all locations')
-                fig8 , df_agg5= make_bar_chart3(df, selected_signals, start_datetime, end_datetime, location_selected, Dash_selected)
-                cv5 = df_agg5.to_csv(index=True)
-                st.download_button(
-                    label="📥 Download data",
-                    data=cv5,
-                    file_name="barchartmonthly.csv",
-                    mime='text/csv',
+        if address in st.session_state.selected_signals and st.session_state.selected_signals is not None:
+            job_config = bigquery.QueryJobConfig(
+            query_parameters=[
+                bigquery.ArrayQueryParameter(
+                    "selected_signals", "STRING", st.session_state.selected_signals
                 )
-                st.plotly_chart(fig8, use_container_width=True )
-
-        # Figures section
-        st.sidebar.markdown("[Figures](#figures)")
-        st.subheader('**Figures**')
-        with st.expander("Expand"):
-            if Dash_selected == 'Recent data (last 1 year)':
-
-                st.subheader('Total pedestrian activity, by location')
-                fig4 , df_agg1 = make_pie_and_bar_chart(df, selected_signals, start_datetime, end_datetime, location_selected, Dash_selected ,color_map)
-                cv2 = df_agg1.to_csv(index=True)
-                st.download_button(
-                    label="📥 Download data",
-                    data=cv2,
-                    file_name="piebarchart.csv",
-                    mime='text/csv',
-                )
-                st.plotly_chart(fig4, use_container_width=True )
-
-                table = make_table(df, selected_signals, start_datetime, end_datetime, aggregation_method_selected, location_selected, Dash_selected)
-                pivot_table = table.pivot_table(values='Pedestrian', index='Timestamp', columns='Signal ID', aggfunc='sum')
-                cv1 = pivot_table.to_csv(index=True)
-                selected_method_lower = aggregation_method_selected.lower()
-                st.subheader(f'Time series of pedestrian activity, by {selected_method_lower}, by location')
-                st.download_button(
-                    label="📥 Download data",
-                    data=cv1,
-                    file_name="TimeSeries.csv",
-                    mime='text/csv',
-                )
-                fig1 = make_chart(df, selected_signals, start_datetime, end_datetime, aggregation_method_selected, location_selected, Dash_selected, color_map,template='plotly')
-                st.plotly_chart(fig1, use_container_width=True )
-                table['Signal ID'] = table['Signal ID'].astype(str)
-                table['Pedestrian'] = table['Pedestrian'].astype(str)
-                table['Signal ID'] = table['Signal ID'].str.replace(',', '.')
-                table['Pedestrian'] = table['Pedestrian'].str.replace(',', '.')
-                table['Signal ID'] = pd.to_numeric(table['Signal ID'], errors='coerce')
-                table['Pedestrian'] = pd.to_numeric(table['Pedestrian'] , errors='coerce')
-                grouped = table.groupby('Signal ID')['Pedestrian'].describe().round(0)
-                missing_counts = table['Pedestrian'].isna().groupby(table['Signal ID']).sum()
-                grouped['Missing Count'] = missing_counts
-                DS = grouped.to_csv(index=True)
-
-                # Box Plot
-                st.subheader(f'Box plot of pedestrian activity, by {selected_method_lower}, by location')
-                signal_ids = table['Signal ID'].unique() 
-                fig = go.Figure()
-                for signal_id, group in table.groupby('Signal ID'):
-                    if signal_id in signal_ids:
-                        color = color_map.get(signal_id, '#000000')  # Default to black if signal_id not found
-                        fig.add_trace(go.Box(y=group['Pedestrian'], name=f'{signal_id}', 
-                                            marker=dict(color=color)))
-                # Save the box_plot_data DataFrame to a CSV file
-                st.download_button(
-                    label="📥 Download data",
-                    data=DS,
-                    file_name="box_plot_data.csv",
-                    mime='text/csv',
-                )
-                fig.update_layout(yaxis_title='<b>Pedestrian Volume<b>', xaxis_title='<b>Location<b>')
-                fig.update_layout(xaxis=dict(title='<b>Location<b>', type='category', tickmode='array', tickvals=signal_ids,
-                                            ticktext=[str(signal_id) for signal_id in signal_ids]))
-                fig.update_layout(showlegend=False)
-                st.plotly_chart(fig, theme='streamlit', use_container_width=True)
-                fig7 = copy.deepcopy(fig)
-                fig7.update_layout(autosize=False, width=920, height=520 , showlegend=False)
-                fig7.update_layout(template='plotly')
-                fig7.write_image("fig6.png")
-            else:
-                st.subheader('Total pedestrian activity, by location')
-                # Add a pie chart to show pedestrian activity by signal
-                fig4 , df_agg1 = make_pie_and_bar_chart(df, selected_signals, start_datetime, end_datetime, location_selected, Dash_selected ,color_map)
-                cv2 = df_agg1.to_csv(index=True)
-                st.download_button(
-                    label="📥 Download data",
-                    data=cv2,
-                    file_name="piebarchart.csv",
-                    mime='text/csv',
-                )
-                st.plotly_chart(fig4, use_container_width=True )
-                table = make_table(df, selected_signals, start_datetime, end_datetime, aggregation_method_selected, location_selected, Dash_selected)
-                pivot_table = table.pivot_table(values='Pedestrian', index='Timestamp', columns='Signal ID', aggfunc='sum')
-                cv1 = pivot_table.to_csv(index=True)
-                selected_method_lower = aggregation_method_selected.lower()
-                st.subheader(f'Time series of pedestrian activity, by {selected_method_lower}, by location')
-                st.download_button(
-                    label="📥 Download data",
-                    data=cv1,
-                    file_name="TimeSeries.csv",
-                    mime='text/csv',
-                )
-                fig1 = make_chart(df, selected_signals, start_datetime, end_datetime, aggregation_method_selected, location_selected, Dash_selected, color_map,template='plotly')
-                st.plotly_chart(fig1, use_container_width=True )
-                table['Signal ID'] = table['Signal ID'].astype(str)
-                table['Pedestrian'] = table['Pedestrian'].astype(str)
-                table['Signal ID'] = table['Signal ID'].str.replace(',', '.')
-                table['Pedestrian'] = table['Pedestrian'].str.replace(',', '.')
-                table['Signal ID'] = pd.to_numeric(table['Signal ID'], errors='coerce')
-                table['Pedestrian'] = pd.to_numeric(table['Pedestrian'] , errors='coerce')
-                grouped = table.groupby('Signal ID')['Pedestrian'].describe().round(0)
-                missing_counts = table['Pedestrian'].isna().groupby(table['Signal ID']).sum()
-                grouped['Missing Count'] = missing_counts
-                DS = grouped.to_csv(index=True)
-                
-                # Box Plot
-                st.subheader(f'Box plot of pedestrian activity, by {selected_method_lower}, by location')
-                signal_ids = table['Signal ID'].unique() 
-                fig = go.Figure()
-                for signal_id, group in table.groupby('Signal ID'):
-                    if signal_id in signal_ids:
-                        color = color_map.get(signal_id, '#000000')  # Default to black if signal_id not found
-                        fig.add_trace(go.Box(y=group['Pedestrian'], name=f'{signal_id}', 
-                                            marker=dict(color=color)))
-
-                # Save the box_plot_data DataFrame to a CSV file
-                st.download_button(
-                    label="📥 Download data",
-                    data=DS,
-                    file_name="box_plot_data.csv",
-                    mime='text/csv',
-                )
-                fig.update_layout(yaxis_title='<b>Pedestrian Volume<b>', xaxis_title='<b>Location<b>')
-                fig.update_layout(xaxis=dict(title='<b>Location<b>', type='category', tickmode='array', tickvals=signal_ids,
-                                            ticktext=[str(signal_id) for signal_id in signal_ids]))
-                fig.update_layout(showlegend=False)
-                st.plotly_chart(fig, theme='streamlit', use_container_width=True)
-                fig7 = copy.deepcopy(fig)
-                fig7.update_layout(autosize=False, width=920, height=520 , showlegend=False)
-                fig7.update_layout(template='plotly')
-                fig7.write_image("fig6.png")
-
-        # Map section
-        st.sidebar.markdown("[Map](#map)")
-        st.subheader('**Map**')  
-        with st.expander("Expand"):
-            map_2= make_map(df,start_datetime, end_datetime , selected_signals , aggregation_method_selected , location_selected, Dash_selected)
-            keplergl_static(map_2)
-        
-        # Data section
-        st.sidebar.markdown("[Data](#data)")
-        st.subheader('**Data**')
-        with st.expander("Expand"): 
-            # Filter your data based on the selected date range
-            st.subheader(f'Data, by {selected_method_lower}, by location')        
-            # Display the filtered data in a table
-            table = make_table(df, selected_signals, start_datetime, end_datetime, aggregation_method_selected, location_selected, Dash_selected)
-            cc = table.to_csv(index=False)
-            st.download_button(
-                label="📥 Download",
-                data=cc,
-                file_name="RawData.csv",
-                mime='text/csv',
+            ]
             )
-            st.dataframe(table , use_container_width=True)
-            # CSS to inject contained in a string
-            hide_dataframe_row_index = """
-                        <style>
-                        .row_heading.level0 {display:none}
-                        .blank {display:none}
-                        </style>
-                        """
+            #st.sidebar.markdown("[Step 2: Select data type](#step-2-select-data-type)")
+            #st.subheader('Step 2: Select data type')
+            # Add a subtitle to the sidebar
+            if Dash_selected == 'Recent data (last 1 year)':
+                df = client.query(sql_query2, job_config=job_config).to_dataframe()
+                unique_signals = df['SIGNAL'].unique().tolist()
+                color_map = create_color_map(unique_signals)
+            else:
+                df = client.query(sql_query3, job_config=job_config).to_dataframe()
+                df['TIME1'] = pd.to_datetime(df['TIME1'])
+                unique_signals = df['SIGNAL'].unique().tolist()
+                color_map = create_color_map(unique_signals)
 
-            # Descriptive  statistics
-            st.subheader(f'Descriptive  statistics, by {selected_method_lower}, by location')
-            st.download_button(
-            label="📥 Download",
-            data=DS,
-            file_name="Descriptive Stat.csv",
-            mime='text/csv',)
-            st.dataframe(grouped , use_container_width=True)
-        
-        # Report section
-        class PDF(FPDF):
+            # Create a list of all unique values in the 'ADDRESS' column of the DataFrame
+            all_addresses = df3['ADDRESS'].tolist()
 
-            def __init__(self):
-                super().__init__(orientation='L')
-                self.page_width = 8.5 * 72  # Letter page width in points (1 inch = 72 points)
-                self.page_height = 11 * 72  # Letter page height in points
-                self.l_margin = 0.5 * 72    # Left margin in points
-                self.r_margin = 0.5 * 72    # Right margin in points
-                #self.add_font('DejaVu', '', 'DejaVuSansCondensed.ttf', uni=True) # Add DejaVu font
+            # Check if selected_signals is not empty
+            if st.session_state.selected_signals:
+                # If selected_signals is not empty, filter the list of all_addresses to include only the selected signals
+                addresses_to_keep = set(st.session_state.selected_signals).intersection(set(all_addresses))
+                all_addresses = list(addresses_to_keep)
 
-            def header(self):
-                # Select Arial bold 15
-                self.set_font('Arial', 'I', 8)
-                # Move to the right
-                self.cell(self.l_margin)
-                # Calculate the X position of the center of the available page width
-                center_x = self.w / 2
-                # Calculate the X position of the center of the title
-                title_x = center_x - (self.get_string_width('Pedestrian Activity Data Report') / 2)
-                # Line break
-                self.ln(20)
-                # Check if we are on the first page
-                if self.page_no() == 1:
-                    # Add the logo to the first page
-                    self.image('images/logo.png', x=10, y=10, w=33/2)
+            st.markdown(
+                """<style>
+            div[class*="stColumn"] > label > div[data-testid="stMarkdownContainer"] > p {
+                font-size: 32px;
+            }
+                </style>
+                """, unsafe_allow_html=True)
 
-            def footer(self):
-                # Position at 1.5 cm from bottom
-                self.set_y(-15)
-                # Arial italic 8
-                self.set_font('Arial', 'I', 8)
-                # Title
-                self.cell(0, 10, 'Pedestrian Activity Report', 0, 0, 'L')
-                # Ensure the footer is placed at 1.5 cm from the bottom
-                self.set_y(-15)
-                # Set the font for the footer: Arial italic, 8
-                self.set_font('Arial', 'I', 8)
+            st.sidebar.markdown("[Step 2: Select parameters](#step-2-select-parameters)")
+            st.subheader('Step 2: Select parameters')
+            form = st.form("Select parameters")
+            
+            # Add a calendar widget to select a date range
+            start_date = form.date_input('**Start date**', df['TIME1'].min())
+            end_date = form.date_input('**End date**', df['TIME1'].max())
 
-                # Footer content
-                # Set the timezone to 'America/Denver' for Utah
-                user_timezone = pytz.timezone('America/Denver')
-                
-                # Get the current time in the Utah timezone
-                now = datetime.now(user_timezone)
-                
-                # Format the date and time strings
-                date_str = now.strftime('%Y-%m-%d')
-                time_str = now.strftime('%H:%M:%S')
-                
-                # Create the footer string
-                footer_str = 'Report generated on {} at {}'.format(date_str, time_str)
+            # Add a slider for selecting the aggregation method
+            if Dash_selected == 'Recent data (last 1 year)':
+                locations = ['All'] + ['Phase ' + str(int(i)) for i in sorted(df[df['ADDRESS'].isin(all_addresses)]['P'].dropna().unique().tolist())]
+                #locations = ['All'] + ['Phase ' + str(int(i)) for i in sorted(df['P'].dropna().unique().tolist())]
+                location_selected = form.selectbox('**Location unit**', options=locations)
+                aggregation_methods = ['Hour', 'Day', 'Week', 'Month', 'Year']
+                aggregation_method_selected = form.selectbox('**Time unit**', options=aggregation_methods)      
+            else:
+                aggregation_methods = ['Day', 'Week', 'Month', 'Year']
+                aggregation_method_selected = form.selectbox('**Time unit**', options=aggregation_methods)
+                location = ['All']
+                location_selected = location[0]
+            
+            st.markdown(
+                """<style>
+            div[class*="stSlider"] > label > div[data-testid="stMarkdownContainer"] > p {
+                font-size: 16px;
+            }
+                </style>
+                """, unsafe_allow_html=True)
 
-                # Add the formatted date and time to the footer, centered
-                self.cell(0, 10, footer_str, 0, 0, 'C')
+            form.form_submit_button("Submit")
 
-                # Add the page number
-                self.cell(0, 10, 'Page ' + str(self.page_no()), 0, 0, 'R')
+            # Convert the date objects to datetime objects
+            start_datetime = datetime.combine(start_date, datetime.min.time())
+            end_datetime = datetime.combine(end_date, datetime.max.time())
+            dt_str = start_date.strftime("%b %d, %Y")
+            dt_str2 = end_date.strftime("%b %d, %Y")
+            start_date2 = pd.Timestamp(start_date).tz_localize('UTC')
+            end_date2 = pd.Timestamp(end_date).tz_localize('UTC')
+            # Format the metric values
+            # Filter the DataFrame based on the selected date range and location
+            if Dash_selected == 'Recent data (last 1 year)':
+                mask = (df['TIME1'] >= start_date2) & (df['TIME1'] <= end_date2)
+            else: 
+                mask = (df['TIME1'] >= start_datetime) & (df['TIME1'] <= end_datetime)
+            if location_selected == 'All':
+                filtered_df = df.loc[mask]
+            else:
+                phase_number = int(location_selected.replace('Phase ', ''))
+                mask &= (df['P'] == phase_number)
+                filtered_df = df.loc[mask]
 
+            # Calculate the sum of pedestrians based on the filtered DataFrame
+            total_pedestrians = filtered_df['PED'].sum()
+            num_signals = len(df['ADDRESS'].unique())
+            total_pedestrians_formatted = format_metric(total_pedestrians)
+            num_signals_formatted = format_metric(num_signals)
+            st.sidebar.markdown("[Metrics](#metrics)")
+            st.subheader('**Metrics**')
+            col1, col2 , col3 , col4= st.columns(4)
 
-            def chapter_title(self, title):
-                # Arial 12
-                self.set_font('Arial', '', 12)
-                # Background color
-                self.set_fill_color(200, 220, 255)
-                # Title
-                self.cell(0, 6, 'Chapter %d : %s' % (num, label), 0, 1, 'L', 1)
-                # Line break
-                self.ln(4)
-
-            def chapter_body(self, body):
-                # Read text file
-                with open(name, 'rb') as fh:
-                    txt = fh.read().decode('latin-1')
-                # Times 12
-                self.set_font('Times', '', 12)
-                # Output justified text
-                self.multi_cell(0, 5, txt)
-                # Line break
-                self.ln()
-                # Mention in italics
-                self.set_font('', 'I')
-                self.cell(0, 5, '(end of excerpt)')
+            # Display the metric boxes
+            col1.metric("**Total pedestrians**", total_pedestrians_formatted)
+            col2.metric("**Selected locations**", num_signals_formatted)
+            col3.metric("**Start date**" , dt_str)
+            col4.metric("**End date**" , dt_str2)
 
 
-        def generate_report(selected_signals, start_datetime, end_datetime, location_selected, aggregation_method_selected, Dash_selected):
-                # Generate plots
-                pdf = PDF()
+            selected_signals = st.session_state.selected_signals or default_address
 
-                # Add a page
-                pdf.add_page()
-                
-
-                # Add the logo to the first page after the first add_page() call
-                pdf.image('images/logo.png', x=10, y=10, w=33/2)
-
-                # Set title
-                pdf.set_font('Arial', 'B', 16)
-                pdf.cell(0, 15, 'Pedestrian activity in Utah', ln=True, align='C')
-
-                # Add a sample text
-                pdf.set_font('Arial', '', 12)
-                pdf.multi_cell(0, 6, "This report provides data and visualizations of pedestrian activity at various locations in Utah. Pedestrian activity is an estimate of pedestrian crossing volume at an intersection, currently based on pedestrian push-button presses at traffic signals.")
-
-
-                # Add selected signals
-                pdf.set_font('Arial', 'B', 14)
-                pdf.ln(5) 
-                pdf.cell(1, 10, 'Selected location(s):', ln=True, align='L')
-                pdf.set_font('Arial', '', 12)
-                for signal in selected_signals:
-                    pdf.cell(1, 6, signal, ln=True, align='L')
-
-                # Add duration
-                pdf.set_font('Arial', 'B', 14)
-                pdf.ln(5)
-                pdf.cell(0, 10, 'Selected parameters:', ln=True)
-                pdf.set_font('Arial', '', 12)
-                start_date = start_datetime.strftime('%Y-%m-%d') 
-                end_date = end_datetime.strftime('%Y-%m-%d')
-                pdf.cell(0, 6, f'Start date: {start_date}', ln=True)
-                pdf.cell(0, 6, f'End date: {end_date}', ln=True)
-                # Display the selected location unit
-                pdf.cell(0, 6, f'Location unit: {location_selected}', ln=True)
-                # Display the selected time unit
-                pdf.cell(0, 6, f'Time unit: {aggregation_method_selected}', ln=True)
-                
-                # Define figure indices based on condition
-                figure_indices = [7, 3, 4, 5, 2, 1, 6] if Dash_selected == 'Recent data (last 1 year)' else [7, 4, 5, 2, 1, 6]
-
-                # Define subtitles based on the condition
+            # Averages section
+            st.sidebar.markdown("[Averages](#averages)")
+            st.subheader('**Averages**')
+            with st.expander("Expand"):
                 if Dash_selected == 'Recent data (last 1 year)':
-                    subtitles = [
-                        'Average daily pedestrian activity, by location',
-                        'Average hourly pedestrian activity, by hour-of-day, total of all locations',
-                        'Average daily pedestrian activity, by day-of-week, total of all locations',
-                        'Average daily pedestrian activity, by month-of-year, total of all locations',
-                        'Total pedestrian activity, by location',
-                        f'Time series of pedestrian activity, by {selected_method_lower}, by location',
-                        f'Box plot of pedestrian activity, by {selected_method_lower}, by location',
-                    ]
-                else:
-                    subtitles = [
-                        'Average daily pedestrian activity, by location',
-                        'Average daily pedestrian activity, by day-of-week, total of all locations',
-                        'Average daily pedestrian activity, by month-of-year, total of all locations',
-                        'Total pedestrian activity, by location',
-                        f'Time series of pedestrian activity, by {selected_method_lower}, by location',
-                        f'Box plot of pedestrian activity, by {selected_method_lower}, by location',
-                    ]
+                    st.subheader('Average daily pedestrian activity, by location')
+                    fig16, df_agg16 = make_bar_chart4(df, selected_signals, start_datetime, end_datetime, location_selected, Dash_selected, color_map)
+                    cv16 = df_agg16.to_csv(index=True)
+                    st.download_button(
+                        label="📥 Download data",
+                        data=cv16,
+                        file_name="barchart_daily_location.csv",
+                        mime='text/csv',
+                    )
+                    st.plotly_chart(fig16, use_container_width=True )
 
-                # Iterate through figures and subtitles
-                for i, subtitle in zip(figure_indices, subtitles):
-                    # Add a page for each figure
+                    st.subheader('Average hourly pedestrian activity, by hour-of-day, total of all locations')
+                    fig2, df_agg3 = make_bar_chart(df, selected_signals, start_datetime, end_datetime, location_selected, Dash_selected)
+                    cv3 = df_agg3.to_csv(index=True)
+                    st.download_button(
+                        label="📥 Download data",
+                        data=cv3,
+                        file_name="barcharthourly.csv",
+                        mime='text/csv',
+                    )
+                    st.plotly_chart(fig2, use_container_width=True )
+
+                    st.subheader('Average daily pedestrian activity, by day-of-week, total of all locations')
+                    fig3 , df_agg4= make_bar_chart2(df, selected_signals, start_datetime, end_datetime, location_selected, Dash_selected)
+                    cv4 = df_agg4.to_csv(index=True)
+                    st.download_button(
+                        label="📥 Download data",
+                        data=cv4,
+                        file_name="barchartdaily.csv",
+                        mime='text/csv',
+                    )
+                    st.plotly_chart(fig3, use_container_width=True )
+
+                    st.subheader('Average daily pedestrian activity, by month-of-year, total of all locations')
+                    fig8 , df_agg5= make_bar_chart3(df, selected_signals, start_datetime, end_datetime, location_selected, Dash_selected)
+                    cv5 = df_agg5.to_csv(index=True)
+                    st.download_button(
+                        label="📥 Download data",
+                        data=cv5,
+                        file_name="barchartmonthly.csv",
+                        mime='text/csv',
+                    )
+                    st.plotly_chart(fig8, use_container_width=True )
+
+                else:
+                    st.subheader('Average daily pedestrian activity, by location')
+                    fig16, df_agg16 = make_bar_chart4(df, selected_signals, start_datetime, end_datetime, location_selected, Dash_selected, color_map)
+                    cv16 = df_agg16.to_csv(index=True)
+                    st.download_button(
+                        label="📥 Download data",
+                        data=cv16,
+                        file_name="barchart_daily_location.csv",
+                        mime='text/csv',
+                    )
+                    st.plotly_chart(fig16, use_container_width=True )
+                
+                    st.subheader('Average daily pedestrian activity, by day-of-week, total of all locations')
+                    fig3 , df_agg4= make_bar_chart2(df, selected_signals, start_datetime, end_datetime, location_selected, Dash_selected)
+                    cv4 = df_agg4.to_csv(index=True)
+                    st.download_button(
+                        label="📥 Download data",
+                        data=cv4,
+                        file_name="barchartdaily.csv",
+                        mime='text/csv',
+                    )
+                    st.plotly_chart(fig3, use_container_width=True )
+
+                    st.subheader('Average daily pedestrian activity, by month-of-year, total of all locations')
+                    fig8 , df_agg5= make_bar_chart3(df, selected_signals, start_datetime, end_datetime, location_selected, Dash_selected)
+                    cv5 = df_agg5.to_csv(index=True)
+                    st.download_button(
+                        label="📥 Download data",
+                        data=cv5,
+                        file_name="barchartmonthly.csv",
+                        mime='text/csv',
+                    )
+                    st.plotly_chart(fig8, use_container_width=True )
+
+            # Figures section
+            st.sidebar.markdown("[Figures](#figures)")
+            st.subheader('**Figures**')
+            with st.expander("Expand"):
+                if Dash_selected == 'Recent data (last 1 year)':
+
+                    st.subheader('Total pedestrian activity, by location')
+                    fig4 , df_agg1 = make_pie_and_bar_chart(df, selected_signals, start_datetime, end_datetime, location_selected, Dash_selected ,color_map)
+                    cv2 = df_agg1.to_csv(index=True)
+                    st.download_button(
+                        label="📥 Download data",
+                        data=cv2,
+                        file_name="piebarchart.csv",
+                        mime='text/csv',
+                    )
+                    st.plotly_chart(fig4, use_container_width=True )
+
+                    table = make_table(df, selected_signals, start_datetime, end_datetime, aggregation_method_selected, location_selected, Dash_selected)
+                    pivot_table = table.pivot_table(values='Pedestrian', index='Timestamp', columns='Signal ID', aggfunc='sum')
+                    cv1 = pivot_table.to_csv(index=True)
+                    selected_method_lower = aggregation_method_selected.lower()
+                    st.subheader(f'Time series of pedestrian activity, by {selected_method_lower}, by location')
+                    st.download_button(
+                        label="📥 Download data",
+                        data=cv1,
+                        file_name="TimeSeries.csv",
+                        mime='text/csv',
+                    )
+                    fig1 = make_chart(df, selected_signals, start_datetime, end_datetime, aggregation_method_selected, location_selected, Dash_selected, color_map,template='plotly')
+                    st.plotly_chart(fig1, use_container_width=True )
+                    table['Signal ID'] = table['Signal ID'].astype(str)
+                    table['Pedestrian'] = table['Pedestrian'].astype(str)
+                    table['Signal ID'] = table['Signal ID'].str.replace(',', '.')
+                    table['Pedestrian'] = table['Pedestrian'].str.replace(',', '.')
+                    table['Signal ID'] = pd.to_numeric(table['Signal ID'], errors='coerce')
+                    table['Pedestrian'] = pd.to_numeric(table['Pedestrian'] , errors='coerce')
+                    grouped = table.groupby('Signal ID')['Pedestrian'].describe().round(0)
+                    missing_counts = table['Pedestrian'].isna().groupby(table['Signal ID']).sum()
+                    grouped['Missing Count'] = missing_counts
+                    DS = grouped.to_csv(index=True)
+
+                    # Box Plot
+                    st.subheader(f'Box plot of pedestrian activity, by {selected_method_lower}, by location')
+                    signal_ids = table['Signal ID'].unique() 
+                    fig = go.Figure()
+                    for signal_id, group in table.groupby('Signal ID'):
+                        if signal_id in signal_ids:
+                            color = color_map.get(signal_id, '#000000')  # Default to black if signal_id not found
+                            fig.add_trace(go.Box(y=group['Pedestrian'], name=f'{signal_id}', 
+                                                marker=dict(color=color)))
+                    # Save the box_plot_data DataFrame to a CSV file
+                    st.download_button(
+                        label="📥 Download data",
+                        data=DS,
+                        file_name="box_plot_data.csv",
+                        mime='text/csv',
+                    )
+                    fig.update_layout(yaxis_title='<b>Pedestrian Volume<b>', xaxis_title='<b>Location<b>')
+                    fig.update_layout(xaxis=dict(title='<b>Location<b>', type='category', tickmode='array', tickvals=signal_ids,
+                                                ticktext=[str(signal_id) for signal_id in signal_ids]))
+                    fig.update_layout(showlegend=False)
+                    st.plotly_chart(fig, theme='streamlit', use_container_width=True)
+                    fig7 = copy.deepcopy(fig)
+                    fig7.update_layout(autosize=False, width=920, height=520 , showlegend=False)
+                    fig7.update_layout(template='plotly')
+                    fig7.write_image("fig6.png")
+                else:
+                    st.subheader('Total pedestrian activity, by location')
+                    # Add a pie chart to show pedestrian activity by signal
+                    fig4 , df_agg1 = make_pie_and_bar_chart(df, selected_signals, start_datetime, end_datetime, location_selected, Dash_selected ,color_map)
+                    cv2 = df_agg1.to_csv(index=True)
+                    st.download_button(
+                        label="📥 Download data",
+                        data=cv2,
+                        file_name="piebarchart.csv",
+                        mime='text/csv',
+                    )
+                    st.plotly_chart(fig4, use_container_width=True )
+                    table = make_table(df, selected_signals, start_datetime, end_datetime, aggregation_method_selected, location_selected, Dash_selected)
+                    pivot_table = table.pivot_table(values='Pedestrian', index='Timestamp', columns='Signal ID', aggfunc='sum')
+                    cv1 = pivot_table.to_csv(index=True)
+                    selected_method_lower = aggregation_method_selected.lower()
+                    st.subheader(f'Time series of pedestrian activity, by {selected_method_lower}, by location')
+                    st.download_button(
+                        label="📥 Download data",
+                        data=cv1,
+                        file_name="TimeSeries.csv",
+                        mime='text/csv',
+                    )
+                    fig1 = make_chart(df, selected_signals, start_datetime, end_datetime, aggregation_method_selected, location_selected, Dash_selected, color_map,template='plotly')
+                    st.plotly_chart(fig1, use_container_width=True )
+                    table['Signal ID'] = table['Signal ID'].astype(str)
+                    table['Pedestrian'] = table['Pedestrian'].astype(str)
+                    table['Signal ID'] = table['Signal ID'].str.replace(',', '.')
+                    table['Pedestrian'] = table['Pedestrian'].str.replace(',', '.')
+                    table['Signal ID'] = pd.to_numeric(table['Signal ID'], errors='coerce')
+                    table['Pedestrian'] = pd.to_numeric(table['Pedestrian'] , errors='coerce')
+                    grouped = table.groupby('Signal ID')['Pedestrian'].describe().round(0)
+                    missing_counts = table['Pedestrian'].isna().groupby(table['Signal ID']).sum()
+                    grouped['Missing Count'] = missing_counts
+                    DS = grouped.to_csv(index=True)
+                    
+                    # Box Plot
+                    st.subheader(f'Box plot of pedestrian activity, by {selected_method_lower}, by location')
+                    signal_ids = table['Signal ID'].unique() 
+                    fig = go.Figure()
+                    for signal_id, group in table.groupby('Signal ID'):
+                        if signal_id in signal_ids:
+                            color = color_map.get(signal_id, '#000000')  # Default to black if signal_id not found
+                            fig.add_trace(go.Box(y=group['Pedestrian'], name=f'{signal_id}', 
+                                                marker=dict(color=color)))
+
+                    # Save the box_plot_data DataFrame to a CSV file
+                    st.download_button(
+                        label="📥 Download data",
+                        data=DS,
+                        file_name="box_plot_data.csv",
+                        mime='text/csv',
+                    )
+                    fig.update_layout(yaxis_title='<b>Pedestrian Volume<b>', xaxis_title='<b>Location<b>')
+                    fig.update_layout(xaxis=dict(title='<b>Location<b>', type='category', tickmode='array', tickvals=signal_ids,
+                                                ticktext=[str(signal_id) for signal_id in signal_ids]))
+                    fig.update_layout(showlegend=False)
+                    st.plotly_chart(fig, theme='streamlit', use_container_width=True)
+                    fig7 = copy.deepcopy(fig)
+                    fig7.update_layout(autosize=False, width=920, height=520 , showlegend=False)
+                    fig7.update_layout(template='plotly')
+                    fig7.write_image("fig6.png")
+
+            # Map section
+            st.sidebar.markdown("[Map](#map)")
+            st.subheader('**Map**')  
+            with st.expander("Expand"):
+                map_2= make_map(df,start_datetime, end_datetime , selected_signals , aggregation_method_selected , location_selected, Dash_selected)
+                keplergl_static(map_2)
+            
+            # Data section
+            st.sidebar.markdown("[Data](#data)")
+            st.subheader('**Data**')
+            with st.expander("Expand"): 
+                # Filter your data based on the selected date range
+                st.subheader(f'Data, by {selected_method_lower}, by location')        
+                # Display the filtered data in a table
+                table = make_table(df, selected_signals, start_datetime, end_datetime, aggregation_method_selected, location_selected, Dash_selected)
+                cc = table.to_csv(index=False)
+                st.download_button(
+                    label="📥 Download",
+                    data=cc,
+                    file_name="RawData.csv",
+                    mime='text/csv',
+                )
+                st.dataframe(table , use_container_width=True)
+                # CSS to inject contained in a string
+                hide_dataframe_row_index = """
+                            <style>
+                            .row_heading.level0 {display:none}
+                            .blank {display:none}
+                            </style>
+                            """
+
+                # Descriptive  statistics
+                st.subheader(f'Descriptive  statistics, by {selected_method_lower}, by location')
+                st.download_button(
+                label="📥 Download",
+                data=DS,
+                file_name="Descriptive Stat.csv",
+                mime='text/csv',)
+                st.dataframe(grouped , use_container_width=True)
+            
+            # Report section
+            class PDF(FPDF):
+
+                def __init__(self):
+                    super().__init__(orientation='L')
+                    self.page_width = 8.5 * 72  # Letter page width in points (1 inch = 72 points)
+                    self.page_height = 11 * 72  # Letter page height in points
+                    self.l_margin = 0.5 * 72    # Left margin in points
+                    self.r_margin = 0.5 * 72    # Right margin in points
+                    #self.add_font('DejaVu', '', 'DejaVuSansCondensed.ttf', uni=True) # Add DejaVu font
+
+                def header(self):
+                    # Select Arial bold 15
+                    self.set_font('Arial', 'I', 8)
+                    # Move to the right
+                    self.cell(self.l_margin)
+                    # Calculate the X position of the center of the available page width
+                    center_x = self.w / 2
+                    # Calculate the X position of the center of the title
+                    title_x = center_x - (self.get_string_width('Pedestrian Activity Data Report') / 2)
+                    # Line break
+                    self.ln(20)
+                    # Check if we are on the first page
+                    if self.page_no() == 1:
+                        # Add the logo to the first page
+                        self.image('images/logo.png', x=10, y=10, w=33/2)
+
+                def footer(self):
+                    # Position at 1.5 cm from bottom
+                    self.set_y(-15)
+                    # Arial italic 8
+                    self.set_font('Arial', 'I', 8)
+                    # Title
+                    self.cell(0, 10, 'Pedestrian Activity Report', 0, 0, 'L')
+                    # Ensure the footer is placed at 1.5 cm from the bottom
+                    self.set_y(-15)
+                    # Set the font for the footer: Arial italic, 8
+                    self.set_font('Arial', 'I', 8)
+
+                    # Footer content
+                    # Set the timezone to 'America/Denver' for Utah
+                    user_timezone = pytz.timezone('America/Denver')
+                    
+                    # Get the current time in the Utah timezone
+                    now = datetime.now(user_timezone)
+                    
+                    # Format the date and time strings
+                    date_str = now.strftime('%Y-%m-%d')
+                    time_str = now.strftime('%H:%M:%S')
+                    
+                    # Create the footer string
+                    footer_str = 'Report generated on {} at {}'.format(date_str, time_str)
+
+                    # Add the formatted date and time to the footer, centered
+                    self.cell(0, 10, footer_str, 0, 0, 'C')
+
+                    # Add the page number
+                    self.cell(0, 10, 'Page ' + str(self.page_no()), 0, 0, 'R')
+
+
+                def chapter_title(self, title):
+                    # Arial 12
+                    self.set_font('Arial', '', 12)
+                    # Background color
+                    self.set_fill_color(200, 220, 255)
+                    # Title
+                    self.cell(0, 6, 'Chapter %d : %s' % (num, label), 0, 1, 'L', 1)
+                    # Line break
+                    self.ln(4)
+
+                def chapter_body(self, body):
+                    # Read text file
+                    with open(name, 'rb') as fh:
+                        txt = fh.read().decode('latin-1')
+                    # Times 12
+                    self.set_font('Times', '', 12)
+                    # Output justified text
+                    self.multi_cell(0, 5, txt)
+                    # Line break
+                    self.ln()
+                    # Mention in italics
+                    self.set_font('', 'I')
+                    self.cell(0, 5, '(end of excerpt)')
+
+
+            def generate_report(selected_signals, start_datetime, end_datetime, location_selected, aggregation_method_selected, Dash_selected):
+                    # Generate plots
+                    pdf = PDF()
+
+                    # Add a page
                     pdf.add_page()
                     
-                    # Set subtitle for the image
+
+                    # Add the logo to the first page after the first add_page() call
+                    pdf.image('images/logo.png', x=10, y=10, w=33/2)
+
+                    # Set title
+                    pdf.set_font('Arial', 'B', 16)
+                    pdf.cell(0, 15, 'Pedestrian activity in Utah', ln=True, align='C')
+
+                    # Add a sample text
+                    pdf.set_font('Arial', '', 12)
+                    pdf.multi_cell(0, 6, "This report provides data and visualizations of pedestrian activity at various locations in Utah. Pedestrian activity is an estimate of pedestrian crossing volume at an intersection, currently based on pedestrian push-button presses at traffic signals.")
+
+
+                    # Add selected signals
                     pdf.set_font('Arial', 'B', 14)
-                    pdf.cell(0, 10, subtitle, ln=True)
+                    pdf.ln(5) 
+                    pdf.cell(1, 10, 'Selected location(s):', ln=True, align='L')
+                    pdf.set_font('Arial', '', 12)
+                    for signal in selected_signals:
+                        pdf.cell(1, 6, signal, ln=True, align='L')
+
+                    # Add duration
+                    pdf.set_font('Arial', 'B', 14)
+                    pdf.ln(5)
+                    pdf.cell(0, 10, 'Selected parameters:', ln=True)
+                    pdf.set_font('Arial', '', 12)
+                    start_date = start_datetime.strftime('%Y-%m-%d') 
+                    end_date = end_datetime.strftime('%Y-%m-%d')
+                    pdf.cell(0, 6, f'Start date: {start_date}', ln=True)
+                    pdf.cell(0, 6, f'End date: {end_date}', ln=True)
+                    # Display the selected location unit
+                    pdf.cell(0, 6, f'Location unit: {location_selected}', ln=True)
+                    # Display the selected time unit
+                    pdf.cell(0, 6, f'Time unit: {aggregation_method_selected}', ln=True)
                     
-                    # Calculate the y position for the image, considering the space taken by the subtitle
-                    y_position = pdf.get_y()
-                    
-                    # Add image to the page, fit to available width
-                    image_path = f'fig{i}.png'
-                    pdf.image(image_path, x=36, y=y_position, w=233)
+                    # Define figure indices based on condition
+                    figure_indices = [7, 3, 4, 5, 2, 1, 6] if Dash_selected == 'Recent data (last 1 year)' else [7, 4, 5, 2, 1, 6]
 
-                # Save the PDF to a BytesIO object
-                pdf_buffer = BytesIO()
-                pdf.output(pdf_buffer, "F")
-                pdf_bytes = pdf_buffer.getvalue()
+                    # Define subtitles based on the condition
+                    if Dash_selected == 'Recent data (last 1 year)':
+                        subtitles = [
+                            'Average daily pedestrian activity, by location',
+                            'Average hourly pedestrian activity, by hour-of-day, total of all locations',
+                            'Average daily pedestrian activity, by day-of-week, total of all locations',
+                            'Average daily pedestrian activity, by month-of-year, total of all locations',
+                            'Total pedestrian activity, by location',
+                            f'Time series of pedestrian activity, by {selected_method_lower}, by location',
+                            f'Box plot of pedestrian activity, by {selected_method_lower}, by location',
+                        ]
+                    else:
+                        subtitles = [
+                            'Average daily pedestrian activity, by location',
+                            'Average daily pedestrian activity, by day-of-week, total of all locations',
+                            'Average daily pedestrian activity, by month-of-year, total of all locations',
+                            'Total pedestrian activity, by location',
+                            f'Time series of pedestrian activity, by {selected_method_lower}, by location',
+                            f'Box plot of pedestrian activity, by {selected_method_lower}, by location',
+                        ]
 
-                # Create a download link for the PDF
-                b64_pdf = base64.b64encode(pdf_bytes).decode()
-                href = f'<a href="data:file/pdf;base64,{b64_pdf}" download="report.pdf">Click here to download the PDF report</a>'
-                st.markdown(href, unsafe_allow_html=True)
+                    # Iterate through figures and subtitles
+                    for i, subtitle in zip(figure_indices, subtitles):
+                        # Add a page for each figure
+                        pdf.add_page()
+                        
+                        # Set subtitle for the image
+                        pdf.set_font('Arial', 'B', 14)
+                        pdf.cell(0, 10, subtitle, ln=True)
+                        
+                        # Calculate the y position for the image, considering the space taken by the subtitle
+                        y_position = pdf.get_y()
+                        
+                        # Add image to the page, fit to available width
+                        image_path = f'fig{i}.png'
+                        pdf.image(image_path, x=36, y=y_position, w=233)
 
-                pdf_buffer.close()
+                    # Save the PDF to a BytesIO object
+                    pdf_buffer = BytesIO()
+                    pdf.output(pdf_buffer, "F")
+                    pdf_bytes = pdf_buffer.getvalue()
 
-                files_to_remove = ["fig1.png", "fig2.png", "fig4.png", "fig5.png" ,  "fig6.png" , "fig7.png"]
+                    # Create a download link for the PDF
+                    b64_pdf = base64.b64encode(pdf_bytes).decode()
+                    href = f'<a href="data:file/pdf;base64,{b64_pdf}" download="report.pdf">Click here to download the PDF report</a>'
+                    st.markdown(href, unsafe_allow_html=True)
 
-                if os.path.exists("fig3.png"):
-                    os.remove("fig3.png")
+                    pdf_buffer.close()
 
-                for file in files_to_remove:
-                    if os.path.exists(file):
-                        os.remove(file)
+                    files_to_remove = ["fig1.png", "fig2.png", "fig4.png", "fig5.png" ,  "fig6.png" , "fig7.png"]
 
-        st.sidebar.markdown("[Report](#report)")
-        st.subheader('Report')
-        with st.expander("Expand"):
-            if st.button('Generate PDF report'):
-                    generate_report(selected_signals, start_datetime, end_datetime, location_selected, aggregation_method_selected, Dash_selected)
+                    if os.path.exists("fig3.png"):
+                        os.remove("fig3.png")
 
-        st.sidebar.markdown(
-            """<style>
-        div[class*="stDate"] > label > div[data-testid="stMarkdownContainer"] > p {
-            font-size: 16px;
-        }
-            </style>
-            """, unsafe_allow_html=True)
-        st.markdown(
-            """<style>
-        div[class*="stExpander"] > label > div[data-testid="stMarkdownContainer"] > p {
-            font-size: 16px;
-        }
-            </style>
-            """, unsafe_allow_html=True)
-    
-        expander = st.sidebar.expander("**Notes**")
-        with expander:
-                expander.write('''
-                        "Pedestrian activity" is an estimate of pedestrian volume, specifically the estimated number of pedestrian crossings at an intersection. These estimated pedestrian volumes are based on pedestrian push-button data, obtained via high-resolution traffic signal controller log data from the Utah Department of Transportation's [Automated Traffic Signal Performance Measures System (ATSPM)](https://udottraffic.utah.gov/atspm/) system. [Research](https://rosap.ntl.bts.gov/view/dot/54924) conducted by the Singleton Transportation Lab at Utah State University has validated the use of pedestrian traffic signal data as a reasonably-accurate estimate of pedestrian volumes in Utah. This website was developed by the [Singleton Transportation Lab](https://engineering.usu.edu/cee/research/labs/patrick-singleton/index) in coordination and funded by the Utah Department of Transportation. 
-                ''')
-        hide_menu_style = """
-            <style>
-            #MainMenu {visibility: hidden;}
-            </style>
-            """
-        st.markdown(hide_menu_style, unsafe_allow_html=True)
+                    for file in files_to_remove:
+                        if os.path.exists(file):
+                            os.remove(file)
+
+            st.sidebar.markdown("[Report](#report)")
+            st.subheader('Report')
+            with st.expander("Expand"):
+                if st.button('Generate PDF report'):
+                        generate_report(selected_signals, start_datetime, end_datetime, location_selected, aggregation_method_selected, Dash_selected)
+
+            st.sidebar.markdown(
+                """<style>
+            div[class*="stDate"] > label > div[data-testid="stMarkdownContainer"] > p {
+                font-size: 16px;
+            }
+                </style>
+                """, unsafe_allow_html=True)
+            st.markdown(
+                """<style>
+            div[class*="stExpander"] > label > div[data-testid="stMarkdownContainer"] > p {
+                font-size: 16px;
+            }
+                </style>
+                """, unsafe_allow_html=True)
+
+            expander = st.sidebar.expander("**Notes**")
+            with expander:
+                    expander.write('''
+                            "Pedestrian activity" is an estimate of pedestrian volume, specifically the estimated number of pedestrian crossings at an intersection. These estimated pedestrian volumes are based on pedestrian push-button data, obtained via high-resolution traffic signal controller log data from the Utah Department of Transportation's [Automated Traffic Signal Performance Measures System (ATSPM)](https://udottraffic.utah.gov/atspm/) system. [Research](https://rosap.ntl.bts.gov/view/dot/54924) conducted by the Singleton Transportation Lab at Utah State University has validated the use of pedestrian traffic signal data as a reasonably-accurate estimate of pedestrian volumes in Utah. This website was developed by the [Singleton Transportation Lab](https://engineering.usu.edu/cee/research/labs/patrick-singleton/index) in coordination and funded by the Utah Department of Transportation. 
+                    ''')
+            hide_menu_style = """
+                <style>
+                #MainMenu {visibility: hidden;}
+                </style>
+                """
+            st.markdown(hide_menu_style, unsafe_allow_html=True)
     else:
         default_address = None  
-        st.warning('Please select at least one location.')
+        st.warning('Please select at least one county or city.')
     
 if __name__ == '__main__':
     main()
