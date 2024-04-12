@@ -86,9 +86,9 @@ WHERE ADDRESS IN UNNEST(@selected_signals)
 
 
 # Define the title
-title = 'Pedestrian Activity Data Visualization Dashboard'
-text1 = 'This website provides data and visualizations of pedestrian activity at various locations in Utah. "Pedestrian activity" is an estimate of pedestrian crossing volume at an intersection, currently based on pedestrian push-button presses at traffic signals. See the "How to use" and "Notes" tabs on the left, or following the step-by-step instructions below.'
-text2 = 'As of 10/31/2023, this website contains pedestrian activity data for 2,030 locations in Utah between 2018 and 2022.'
+title = 'Pedestrian volume Data Visualization Dashboard'
+text1 = 'This website provides data and visualizations of pedestrian volume at various locations in Utah. "Pedestrian volume" is an estimate of pedestrian crossing volume at an intersection, currently based on pedestrian push-button presses at traffic signals. See the "How to use" and "Notes" tabs on the left, or following the step-by-step instructions below.'
+text2 = 'As of 10/31/2023, this website contains pedestrian volume data for 2,030 locations in Utah between 2018 and 2022.'
 
 # Define the x and y axis labels
 x_axis_label = 'TIME1'
@@ -265,7 +265,7 @@ def make_table(df, signals, start_date, end_date, aggregation_method, location,D
     return df_agg
 
 @st.cache_resource
-# Creating combined pie and treemap charts for pedestrian activity analysis
+# Creating combined pie and treemap charts for pedestrian volume analysis
 def make_pie_and_bar_chart(df, signals, start_date, end_date, location,Dash_selected , color_map):
 
     if location == 'All':
@@ -322,7 +322,7 @@ def make_pie_and_bar_chart(df, signals, start_date, end_date, location,Dash_sele
         hovertemplate='<b>Signal ID:</b> %{label}<br><b>Pedestrian:</b> %{value}<br><b>Address:</b> %{customdata}<extra></extra>',
     ))
 
-    fig_treemap.update_layout(title='Pedestrian Activity by location', showlegend=False)
+    fig_treemap.update_layout(title='Pedestrian Volume by location', showlegend=False)
 
     # Combine the pie, bar, and treemap charts
     fig_combined = make_subplots(rows=1, cols=2, specs=[[{'type': 'domain'}, {'type': 'treemap'}]])
@@ -693,7 +693,7 @@ def main():
     # Set the app title
     st.set_page_config(page_title='PEDAT Dashboard' , page_icon="📈" , layout="wide"  )
     # Add a title to the sidebar
-    st.title("Pedestrian activity in Utah")
+    st.title("Pedestrian volume in Utah")
     st.markdown(text1)
     st.markdown(text2)
     
@@ -1026,7 +1026,7 @@ def main():
             st.subheader('**Averages**')
             with st.expander("Expand"):
                 if Dash_selected == 'Recent data (last 1 year)':
-                    st.subheader('Average daily pedestrian activity, by location')
+                    st.subheader('Average daily pedestrian volume, by location')
                     fig16, df_agg16 = make_bar_chart4(df, selected_signals, start_datetime, end_datetime, location_selected, Dash_selected, color_map)
                     cv16 = df_agg16.to_csv(index=True)
                     st.download_button(
@@ -1037,7 +1037,7 @@ def main():
                     )
                     st.plotly_chart(fig16, use_container_width=True )
 
-                    st.subheader('Average hourly pedestrian activity, by hour-of-day, total of all locations')
+                    st.subheader('Average hourly pedestrian volume, by hour-of-day, total of all locations')
                     fig2, df_agg3 = make_bar_chart(df, selected_signals, start_datetime, end_datetime, location_selected, Dash_selected)
                     cv3 = df_agg3.to_csv(index=True)
                     st.download_button(
@@ -1048,7 +1048,7 @@ def main():
                     )
                     st.plotly_chart(fig2, use_container_width=True )
 
-                    st.subheader('Average daily pedestrian activity, by day-of-week, total of all locations')
+                    st.subheader('Average daily pedestrian volume, by day-of-week, total of all locations')
                     fig3 , df_agg4= make_bar_chart2(df, selected_signals, start_datetime, end_datetime, location_selected, Dash_selected)
                     cv4 = df_agg4.to_csv(index=True)
                     st.download_button(
@@ -1059,7 +1059,7 @@ def main():
                     )
                     st.plotly_chart(fig3, use_container_width=True )
 
-                    st.subheader('Average daily pedestrian activity, by month-of-year, total of all locations')
+                    st.subheader('Average daily pedestrian volume, by month-of-year, total of all locations')
                     fig8 , df_agg5= make_bar_chart3(df, selected_signals, start_datetime, end_datetime, location_selected, Dash_selected)
                     cv5 = df_agg5.to_csv(index=True)
                     st.download_button(
@@ -1071,7 +1071,7 @@ def main():
                     st.plotly_chart(fig8, use_container_width=True )
 
                 else:
-                    st.subheader('Average daily pedestrian activity, by location')
+                    st.subheader('Average daily pedestrian volume, by location')
                     fig16, df_agg16 = make_bar_chart4(df, selected_signals, start_datetime, end_datetime, location_selected, Dash_selected, color_map)
                     cv16 = df_agg16.to_csv(index=True)
                     st.download_button(
@@ -1082,7 +1082,7 @@ def main():
                     )
                     st.plotly_chart(fig16, use_container_width=True )
                 
-                    st.subheader('Average daily pedestrian activity, by day-of-week, total of all locations')
+                    st.subheader('Average daily pedestrian volume, by day-of-week, total of all locations')
                     fig3 , df_agg4= make_bar_chart2(df, selected_signals, start_datetime, end_datetime, location_selected, Dash_selected)
                     cv4 = df_agg4.to_csv(index=True)
                     st.download_button(
@@ -1093,7 +1093,7 @@ def main():
                     )
                     st.plotly_chart(fig3, use_container_width=True )
 
-                    st.subheader('Average daily pedestrian activity, by month-of-year, total of all locations')
+                    st.subheader('Average daily pedestrian volume, by month-of-year, total of all locations')
                     fig8 , df_agg5= make_bar_chart3(df, selected_signals, start_datetime, end_datetime, location_selected, Dash_selected)
                     cv5 = df_agg5.to_csv(index=True)
                     st.download_button(
@@ -1110,7 +1110,7 @@ def main():
             with st.expander("Expand"):
                 if Dash_selected == 'Recent data (last 1 year)':
 
-                    st.subheader('Total pedestrian activity, by location')
+                    st.subheader('Total pedestrian volume, by location')
                     fig4 , df_agg1 = make_pie_and_bar_chart(df, selected_signals, start_datetime, end_datetime, location_selected, Dash_selected ,color_map)
                     cv2 = df_agg1.to_csv(index=True)
                     st.download_button(
@@ -1125,7 +1125,7 @@ def main():
                     pivot_table = table.pivot_table(values='Pedestrian', index='Timestamp', columns='Signal ID', aggfunc='sum')
                     cv1 = pivot_table.to_csv(index=True)
                     selected_method_lower = aggregation_method_selected.lower()
-                    st.subheader(f'Time series of pedestrian activity, by {selected_method_lower}, by location')
+                    st.subheader(f'Time series of pedestrian volume, by {selected_method_lower}, by location')
                     st.download_button(
                         label="📥 Download data",
                         data=cv1,
@@ -1146,7 +1146,7 @@ def main():
                     DS = grouped.to_csv(index=True)
 
                     # Box Plot
-                    st.subheader(f'Box plot of pedestrian activity, by {selected_method_lower}, by location')
+                    st.subheader(f'Box plot of pedestrian volume, by {selected_method_lower}, by location')
                     signal_ids = table['Signal ID'].unique() 
                     fig = go.Figure()
                     for signal_id, group in table.groupby('Signal ID'):
@@ -1171,8 +1171,8 @@ def main():
                     fig7.update_layout(template='plotly')
                     fig7.write_image("fig6.png")
                 else:
-                    st.subheader('Total pedestrian activity, by location')
-                    # Add a pie chart to show pedestrian activity by signal
+                    st.subheader('Total pedestrian volume, by location')
+                    # Add a pie chart to show pedestrian volume by signal
                     fig4 , df_agg1 = make_pie_and_bar_chart(df, selected_signals, start_datetime, end_datetime, location_selected, Dash_selected ,color_map)
                     cv2 = df_agg1.to_csv(index=True)
                     st.download_button(
@@ -1186,7 +1186,7 @@ def main():
                     pivot_table = table.pivot_table(values='Pedestrian', index='Timestamp', columns='Signal ID', aggfunc='sum')
                     cv1 = pivot_table.to_csv(index=True)
                     selected_method_lower = aggregation_method_selected.lower()
-                    st.subheader(f'Time series of pedestrian activity, by {selected_method_lower}, by location')
+                    st.subheader(f'Time series of pedestrian volume, by {selected_method_lower}, by location')
                     st.download_button(
                         label="📥 Download data",
                         data=cv1,
@@ -1207,7 +1207,7 @@ def main():
                     DS = grouped.to_csv(index=True)
                     
                     # Box Plot
-                    st.subheader(f'Box plot of pedestrian activity, by {selected_method_lower}, by location')
+                    st.subheader(f'Box plot of pedestrian volume, by {selected_method_lower}, by location')
                     signal_ids = table['Signal ID'].unique() 
                     fig = go.Figure()
                     for signal_id, group in table.groupby('Signal ID'):
@@ -1292,7 +1292,7 @@ def main():
                     # Calculate the X position of the center of the available page width
                     center_x = self.w / 2
                     # Calculate the X position of the center of the title
-                    title_x = center_x - (self.get_string_width('Pedestrian Activity Data Report') / 2)
+                    title_x = center_x - (self.get_string_width('Pedestrian Volume Data Report') / 2)
                     # Line break
                     self.ln(20)
                     # Check if we are on the first page
@@ -1306,7 +1306,7 @@ def main():
                     # Arial italic 8
                     self.set_font('Arial', 'I', 8)
                     # Title
-                    self.cell(0, 10, 'Pedestrian Activity Report', 0, 0, 'L')
+                    self.cell(0, 10, 'Pedestrian Volume Report', 0, 0, 'L')
                     # Ensure the footer is placed at 1.5 cm from the bottom
                     self.set_y(-15)
                     # Set the font for the footer: Arial italic, 8
@@ -1371,11 +1371,11 @@ def main():
 
                     # Set title
                     pdf.set_font('Arial', 'B', 16)
-                    pdf.cell(0, 15, 'Pedestrian activity in Utah', ln=True, align='C')
+                    pdf.cell(0, 15, 'Pedestrian volume in Utah', ln=True, align='C')
 
                     # Add a sample text
                     pdf.set_font('Arial', '', 12)
-                    pdf.multi_cell(0, 6, "This report provides data and visualizations of pedestrian activity at various locations in Utah. Pedestrian activity is an estimate of pedestrian crossing volume at an intersection, currently based on pedestrian push-button presses at traffic signals.")
+                    pdf.multi_cell(0, 6, "This report provides data and visualizations of pedestrian volume at various locations in Utah. Pedestrian volume is an estimate of pedestrian crossing volume at an intersection, currently based on pedestrian push-button presses at traffic signals.")
 
 
                     # Add selected signals
@@ -1406,22 +1406,22 @@ def main():
                     # Define subtitles based on the condition
                     if Dash_selected == 'Recent data (last 1 year)':
                         subtitles = [
-                            'Average daily pedestrian activity, by location',
-                            'Average hourly pedestrian activity, by hour-of-day, total of all locations',
-                            'Average daily pedestrian activity, by day-of-week, total of all locations',
-                            'Average daily pedestrian activity, by month-of-year, total of all locations',
-                            'Total pedestrian activity, by location',
-                            f'Time series of pedestrian activity, by {selected_method_lower}, by location',
-                            f'Box plot of pedestrian activity, by {selected_method_lower}, by location',
+                            'Average daily pedestrian volume, by location',
+                            'Average hourly pedestrian volume, by hour-of-day, total of all locations',
+                            'Average daily pedestrian volume, by day-of-week, total of all locations',
+                            'Average daily pedestrian volume, by month-of-year, total of all locations',
+                            'Total pedestrian volume, by location',
+                            f'Time series of pedestrian volume, by {selected_method_lower}, by location',
+                            f'Box plot of pedestrian volume, by {selected_method_lower}, by location',
                         ]
                     else:
                         subtitles = [
-                            'Average daily pedestrian activity, by location',
-                            'Average daily pedestrian activity, by day-of-week, total of all locations',
-                            'Average daily pedestrian activity, by month-of-year, total of all locations',
-                            'Total pedestrian activity, by location',
-                            f'Time series of pedestrian activity, by {selected_method_lower}, by location',
-                            f'Box plot of pedestrian activity, by {selected_method_lower}, by location',
+                            'Average daily pedestrian volume, by location',
+                            'Average daily pedestrian volume, by day-of-week, total of all locations',
+                            'Average daily pedestrian volume, by month-of-year, total of all locations',
+                            'Total pedestrian volume, by location',
+                            f'Time series of pedestrian volume, by {selected_method_lower}, by location',
+                            f'Box plot of pedestrian volume, by {selected_method_lower}, by location',
                         ]
 
                     # Iterate through figures and subtitles
@@ -1485,7 +1485,7 @@ def main():
             expander = st.sidebar.expander("**Notes**")
             with expander:
                     expander.write('''
-                            "Pedestrian activity" is an estimate of pedestrian volume, specifically the estimated number of pedestrian crossings at an intersection. These estimated pedestrian volumes are based on pedestrian push-button data, obtained via high-resolution traffic signal controller log data from the Utah Department of Transportation's [Automated Traffic Signal Performance Measures System (ATSPM)](https://udottraffic.utah.gov/atspm/) system. [Research](https://rosap.ntl.bts.gov/view/dot/54924) conducted by the Singleton Transportation Lab at Utah State University has validated the use of pedestrian traffic signal data as a reasonably-accurate estimate of pedestrian volumes in Utah. This website was developed by the [Singleton Transportation Lab](https://engineering.usu.edu/cee/research/labs/patrick-singleton/index) in coordination and funded by the Utah Department of Transportation. 
+                            "Pedestrian volume" is an estimate of pedestrian volume, specifically the estimated number of pedestrian crossings at an intersection. These estimated pedestrian volumes are based on pedestrian push-button data, obtained via high-resolution traffic signal controller log data from the Utah Department of Transportation's [Automated Traffic Signal Performance Measures System (ATSPM)](https://udottraffic.utah.gov/atspm/) system. [Research](https://rosap.ntl.bts.gov/view/dot/54924) conducted by the Singleton Transportation Lab at Utah State University has validated the use of pedestrian traffic signal data as a reasonably-accurate estimate of pedestrian volumes in Utah. This website was developed by the [Singleton Transportation Lab](https://engineering.usu.edu/cee/research/labs/patrick-singleton/index) in coordination and funded by the Utah Department of Transportation. 
                     ''')
             hide_menu_style = """
                 <style>
