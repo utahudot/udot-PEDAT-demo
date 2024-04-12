@@ -693,7 +693,7 @@ def main():
     # Set the app title
     st.set_page_config(page_title='PEDAT Dashboard' , page_icon="📈" , layout="wide"  )
     # Add a title to the sidebar
-    st.title("Pedestrian volume in Utah")
+    st.title("Pedestrian Volume in Utah")
     st.markdown(text1)
     st.markdown(text2)
     
@@ -1371,7 +1371,7 @@ def main():
 
                     # Set title
                     pdf.set_font('Arial', 'B', 16)
-                    pdf.cell(0, 15, 'Pedestrian volume in Utah', ln=True, align='C')
+                    pdf.cell(0, 15, 'Pedestrian Volume in Utah', ln=True, align='C')
 
                     # Add a sample text
                     pdf.set_font('Arial', '', 12)
