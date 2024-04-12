@@ -86,7 +86,7 @@ WHERE ADDRESS IN UNNEST(@selected_signals)
 
 
 # Define the title
-title = 'Pedestrian volume Data Visualization Dashboard'
+title = 'Pedestrian Volume Data Visualization Dashboard'
 text1 = 'This website provides data and visualizations of pedestrian volume at various locations in Utah. "Pedestrian volume" is an estimate of pedestrian crossing volume at an intersection, currently based on pedestrian push-button presses at traffic signals. See the "How to use" and "Notes" tabs on the left, or following the step-by-step instructions below.'
 text2 = 'As of 10/31/2023, this website contains pedestrian volume data for 2,030 locations in Utah between 2018 and 2022.'
 
