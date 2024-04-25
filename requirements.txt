@@ -1,5 +1,5 @@
 streamlit>=1.13.0
-folium
+folium>=0.13,<0.15
 pandas
 plotly
 pydeck
@@ -18,4 +18,4 @@ streamlit-keplergl
 streamlit-folium
 db-dtypes
 pytz
-branca
+branca=0.7.1
