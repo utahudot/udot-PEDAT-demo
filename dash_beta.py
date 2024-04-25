@@ -690,7 +690,7 @@ def make_map(df, start_date, end_date, signals, aggregation_method, location_sel
 
     
 @st.experimental_fragment
-def make_map2(df, signals, aggregation_method, location_selected, Dash_selected, color_map):
+def make_map2(df, signals, aggregation_method, location_selected, Dash_selected):
        
     # Check if the 'TIME1' datetime objects are already timezone-aware
     if df['TIME1'].dt.tz is not None:
@@ -1376,7 +1376,7 @@ def main():
         st.sidebar.markdown("[Map](#map)")
         st.subheader('**Map**')  
         with st.expander("Expand"):
-            make_map2(filtered_df, selected_signals ,aggregation_method_selected , location_selected, Dash_selected , color_map)
+            make_map2(filtered_df, selected_signals ,aggregation_method_selected , location_selected, Dash_selected)
             
             #keplergl_static(map_2)
             

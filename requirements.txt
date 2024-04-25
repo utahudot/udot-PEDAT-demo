@@ -18,4 +18,8 @@ streamlit-keplergl
 streamlit-folium
 db-dtypes
 pytz
+<<<<<<< HEAD
 branca
+=======
+branca
+>>>>>>> f585019bcf6080b7a935bf8aa50abb5e562ed42f
