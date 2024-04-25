@@ -18,3 +18,4 @@ streamlit-keplergl
 streamlit-folium
 db-dtypes
 pytz
+branca
