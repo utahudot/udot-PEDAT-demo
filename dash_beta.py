@@ -555,140 +555,7 @@ def make_bar_chart4(df, signals, start_date, end_date, location, Dash_selected, 
 
     return fig_bar, df_agg
 
-# Creating an interactive map visualization with data filtering and aggregation based on user selections
-def make_map(df, start_date, end_date, signals, aggregation_method, location_selected, Dash_selected,):
-   
-    # Convert start_date and end_date to datetime, if not already
-    start_date = pd.to_datetime(start_date)
-    end_date = pd.to_datetime(end_date)
-
-    # Filter by date, selected signals, and location
-    if Dash_selected == 'Recent data (last 1 year)':
-        mask = (df['TIME1'] >= start_date.tz_localize('UTC')) & (df['TIME1'] < end_date.tz_localize('UTC')) & (df['ADDRESS'].isin(signals))
-        if location_selected == 'All':
-            mask &= df['P'] >= 0  # include all values of P for intersections
-        else:
-            if location_selected.startswith('Phase'):
-                phase_num = int(location_selected.split()[1])
-                mask &= df['P'] == phase_num
-            else:
-                mask &= df['ADDRESS'] == location_selected
-        df_filtered = df.loc[mask]
-    else:
-        mask = (df['TIME1'] >= start_date) & (df['TIME1'] <= end_date) & (df['ADDRESS'].isin(signals))
-        df_filtered = df.loc[mask]
-
-    # Define aggregation methods
-    agg_functions = {
-        'Hour': 'sum',
-        'Day': 'sum',
-        'Week': 'sum',
-        'Month': 'sum',
-        'Year': 'sum'
-    }
-
-    aggregation_function = agg_functions[aggregation_method]
-
-    # Aggregate by location
-    if location_selected == 'All':
-        df_agg = df_filtered.groupby(['LAT', 'LNG', 'ADDRESS', 'CITY', 'SIGNAL', 'TIME1']).agg({'PED': aggregation_function}).reset_index()
-        df_agg.rename(columns={'LNG': 'LON'}, inplace=True)
-    else:
-        df_agg = df_filtered.groupby(['LAT', 'LNG', 'ADDRESS', 'CITY', 'P', 'SIGNAL', 'TIME1']).agg({'PED': aggregation_function}).reset_index()
-        df_agg.rename(columns={'LNG': 'LON'}, inplace=True)
-    
-    df_agg['TIME1'] = pd.to_datetime(df_agg['TIME1'])
-    df_agg['TIME1'] = df_agg['TIME1'].dt.strftime('%Y-%m-%d %H:%M:%S')
-    df_agg = df_agg.rename(columns={'SIGNAL': 'Signal ID', 'TIME1':'Timestamp' , 'PED':'Pedestrian volume' })
-
-    # Assuming start_date is already a datetime object
-    start_date_timestamp_ms = start_date.timestamp() * 1000
-    # Convert the timestamp to a Pandas datetime object
-    start_date_datetime = pd.to_datetime(start_date_timestamp_ms, unit='ms')
-    # Add one month
-    next_day_datetime = start_date + timedelta(days=1)
-    # Convert to a timestamp in milliseconds
-    next_day_timestamp_ms = int(next_day_datetime.timestamp() * 1000)
-
-    map_config = {
-        'version': 'v1',
-        'config': {
-            'mapState': {
-                'latitude': df_agg['LAT'].mean(),
-                'longitude': df_agg['LON'].mean(),
-                'zoom': 13,
-            },
-            'mapStyle': {
-                'styleType': 'light'  
-            },
-            'visState': {
-                'layers': [{
-                    'type': 'hexagon',  
-                    'config': {
-                        'dataId': 'data_1',
-                        'label': 'Hexagon',
-                        'color': [194, 46, 0],
-                        'columns': {
-                            'lat': 'LAT',
-                            'lng': 'LON',
-                        },
-                        'isVisible': True,
-                        'visConfig': {
-                            'opacity': 0.8,
-                            'worldUnitSize': 0.05,
-                            'radius': 5,
-                            'outline': True, 
-                            'filled': False,
-                            'enable3d': True, 
-                            'colorRange': {
-                                'name': 'ColorBrewer YlGn-6',
-                                'type': 'sequential',
-                                'category': 'ColorBrewer',
-                                'colors': ['#ffffcc','#d9f0a3','#addd8e','#78c679','#31a354','#006837']
-                            },
-                                                    },
-                        'textLabel': [{
-                            'field': None,
-                            'color': [255, 255, 255],
-                            'size': 18,
-                            'offset': [0, 0],
-                            'anchor': 'start',
-                            'alignment': 'center'
-                        }]
-                    },
-                    'visualChannels': {
-                        'colorField': {'name': 'Signal ID', 'type': 'integer'},
-                        'colorScale': 'quantile',
-                        'sizeField': {'name': 'Pedestrian volume', 'type': 'integer'},  
-                        'sizeScale': 'linear'
-                    }
-                }],
-                'interactionConfig': {'tooltip': {'fieldsToShow': {'data_1': [{'name': 'Signal ID',
-                      'format': None}]},
-                    'compareMode': False,
-                    'compareType': 'absolute',
-                    'enabled': True},
-                'brush': {'size': 0.5, 'enabled': False},
-                'geocoder': {'enabled': False},
-                'coordinate': {'enabled': False}},
-                'filters': [{
-                    'dataId': 'data_1',
-                    'name': 'Timestamp',
-                    'type': 'timeRange',
-                    'value': [start_date_timestamp_ms, next_day_timestamp_ms],
-                    'enlarged': True,
-                    'plotType': 'lineChart',
-                    'yAxis': {'name': 'PED', 'type': 'integer'},
-                    'animationWindow': 'free',
-                    'speed': 0.2
-                }],
-            }
-        }}
-
-    map_1 = KeplerGl(height=600, data={'data_1': df_agg}, config=map_config)
-    return map_1
-
-    
+  
 @st.experimental_fragment
 def make_map2(df, signals, aggregation_method, location_selected, Dash_selected):
        
@@ -766,30 +633,10 @@ def make_map2(df, signals, aggregation_method, location_selected, Dash_selected)
     mean_lat = df['LAT'].mean()
     mean_lng = df['LNG'].mean()
     # Create a Folium map with specified width and height
-    m = folium.Map(location=[mean_lat, mean_lng],  zoom_start=13, tiles=None)
-    # Add custom tile layers
-    pedat_tiles = folium.TileLayer(
-        tiles='https://api.mapbox.com/styles/v1/bashasvari/clhgx1yir00h901q1ecbt9165/tiles/256/{z}/{x}/{y}@2x?access_token=pk.eyJ1IjoiYmFzaGFzdmFyaSIsImEiOiJjbGVmaTdtMmIwcXkzM3Jxam9hb2pwZ3BoIn0.JmYank8e3bmQ7RmRiVdTIg',
+    m = folium.Map(location=[mean_lat, mean_lng],  zoom_start=13, tiles='https://api.mapbox.com/styles/v1/bashasvari/clhgx1yir00h901q1ecbt9165/tiles/256/{z}/{x}/{y}@2x?access_token=pk.eyJ1IjoiYmFzaGFzdmFyaSIsImEiOiJjbGVmaTdtMmIwcXkzM3Jxam9hb2pwZ3BoIn0.JmYank8e3bmQ7RmRiVdTIg',
         attr='PEDAT map',
-        name='PEDAT',
-        overlay=False,
-        control=True
-    )
-    satellite = folium.TileLayer(
-        tiles='https://api.mapbox.com/styles/v1/bashasvari/cluvp5mkm000i01og0rbcgwmf/tiles/256/{z}/{x}/{y}@2x?access_token=pk.eyJ1IjoiYmFzaGFzdmFyaSIsImEiOiJjbGVmaTdtMmIwcXkzM3Jxam9hb2pwZ3BoIn0.JmYank8e3bmQ7RmRiVdTIg',
-        attr='Satellite',
-        name='Satellite Map',
-        overlay=False,
-        control=True
-    )
-
-    # Add the PEDAT layer and show it by default
-    pedat_tiles.add_to(m)
-    satellite.add_to(m)
-
-    # Adding other tile layers but not showing them by default
-    folium.TileLayer('OpenStreetMap', name='Open Street Map', overlay=False, control=True).add_to(m)
-    folium.TileLayer('CartoDB dark_matter', name='CartoDB Dark Matter', overlay=False, control=True).add_to(m)
+        name='PEDAT')
+    
 
     # Create a color scale based on PED values
     max_ped = df_agg['PED'].max()
@@ -819,7 +666,6 @@ def make_map2(df, signals, aggregation_method, location_selected, Dash_selected)
     #sw = df[['LAT', 'LNG']].min().values.tolist()
     #ne = df[['LAT', 'LNG']].max().values.tolist()
     #m.fit_bounds([sw, ne])
-    folium.LayerControl().add_to(m)
     st_folium(m, width='80%', height=600)
 
     
