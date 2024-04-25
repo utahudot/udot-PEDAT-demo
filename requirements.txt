@@ -18,4 +18,4 @@ streamlit-keplergl
 streamlit-folium
 db-dtypes
 pytz
-branca=0.7.1
+branca==0.7.1
