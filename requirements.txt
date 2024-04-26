@@ -15,11 +15,8 @@ imgkit
 kaleido
 keplergl
 streamlit-keplergl
-streamlit-folium
+streamlit-folium==0.19.1
 db-dtypes
 pytz
-<<<<<<< HEAD
-branca
-=======
-branca
->>>>>>> f585019bcf6080b7a935bf8aa50abb5e562ed42f
+branca==0.7.1
+
