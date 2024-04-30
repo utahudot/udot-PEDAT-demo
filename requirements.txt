@@ -16,7 +16,9 @@ kaleido
 keplergl
 streamlit-keplergl
 streamlit-folium==0.19.1
+streamlit-folium==0.19.1
 db-dtypes
 pytz
+branca==0.7.1
 branca==0.7.1
 

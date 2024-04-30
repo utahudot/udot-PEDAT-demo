@@ -633,30 +633,10 @@ def make_map2(df, signals, aggregation_method, location_selected, Dash_selected)
     mean_lat = df['LAT'].mean()
     mean_lng = df['LNG'].mean()
     # Create a Folium map with specified width and height
-    m = folium.Map(location=[mean_lat, mean_lng],  zoom_start=13, tiles=None)
-    # Add custom tile layers
-    pedat_tiles = folium.TileLayer(
-        tiles='https://api.mapbox.com/styles/v1/bashasvari/clhgx1yir00h901q1ecbt9165/tiles/256/{z}/{x}/{y}@2x?access_token=pk.eyJ1IjoiYmFzaGFzdmFyaSIsImEiOiJjbGVmaTdtMmIwcXkzM3Jxam9hb2pwZ3BoIn0.JmYank8e3bmQ7RmRiVdTIg',
+    m = folium.Map(location=[mean_lat, mean_lng],  zoom_start=13, tiles='https://api.mapbox.com/styles/v1/bashasvari/clhgx1yir00h901q1ecbt9165/tiles/256/{z}/{x}/{y}@2x?access_token=pk.eyJ1IjoiYmFzaGFzdmFyaSIsImEiOiJjbGVmaTdtMmIwcXkzM3Jxam9hb2pwZ3BoIn0.JmYank8e3bmQ7RmRiVdTIg',
         attr='PEDAT map',
-        name='PEDAT',
-        overlay=False,
-        control=True
-    )
-    satellite = folium.TileLayer(
-        tiles='https://api.mapbox.com/styles/v1/bashasvari/cluvp5mkm000i01og0rbcgwmf/tiles/256/{z}/{x}/{y}@2x?access_token=pk.eyJ1IjoiYmFzaGFzdmFyaSIsImEiOiJjbGVmaTdtMmIwcXkzM3Jxam9hb2pwZ3BoIn0.JmYank8e3bmQ7RmRiVdTIg',
-        attr='Satellite',
-        name='Satellite Map',
-        overlay=False,
-        control=True
-    )
-
-    # Add the PEDAT layer and show it by default
-    pedat_tiles.add_to(m)
-    satellite.add_to(m)
-
-    # Adding other tile layers but not showing them by default
-    folium.TileLayer('OpenStreetMap', name='Open Street Map', overlay=False, control=True).add_to(m)
-    folium.TileLayer('CartoDB dark_matter', name='CartoDB Dark Matter', overlay=False, control=True).add_to(m)
+        name='PEDAT')
+    
 
     # Create a color scale based on PED values
     max_ped = df_agg['PED'].max()
@@ -686,7 +666,6 @@ def make_map2(df, signals, aggregation_method, location_selected, Dash_selected)
     #sw = df[['LAT', 'LNG']].min().values.tolist()
     #ne = df[['LAT', 'LNG']].max().values.tolist()
     #m.fit_bounds([sw, ne])
-    folium.LayerControl().add_to(m)
     st_folium(m, width='80%', height=600)
 
     
