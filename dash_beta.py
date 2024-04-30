@@ -1,7 +1,7 @@
 # Pedestrian Volume Data Visualization Dashboard (PEDAT)
 # Author:   Amir Rafe (amir.rafe@usu.edu)
 # File:     dash_beta.py
-# Version:  1.0.10.beta  
+# Version:  1.0.14.beta  
 # About:    A streamlit webapp to visualize pedestrian volum data in Utah
 
 # Streamlit for web app functionality
@@ -26,6 +26,7 @@ import folium
 from folium.plugins import Draw, MarkerCluster, Search, FastMarkerCluster
 from keplergl import KeplerGl
 import pydeck as pdk
+import branca.colormap as cm
 from branca.colormap import linear
 
 # Date and time handling
@@ -592,16 +593,29 @@ def make_map2(df, signals, aggregation_method, location_selected, Dash_selected)
             value=(0, 23)
         )
 
+        # Adjust the filter condition for hour range
+        if start_hour == end_hour:
+            # Include the entire hour if start and end hours are the same
+            hour_mask = (df['TIME1'].dt.hour == start_hour)
+        else:
+            # Standard range filtering if different start and end hours
+            hour_mask = (df['TIME1'].dt.hour >= start_hour) & (df['TIME1'].dt.hour < end_hour)
+
         # Filter by date, hour, selected signals, and location
-        mask = (df['TIME1'].dt.date >= start_date.date()) & (df['TIME1'].dt.date <= end_date.date()) & (df['TIME1'].dt.hour >= start_hour) & (df['TIME1'].dt.hour < end_hour) & (df['ADDRESS'].isin(signals))
+        mask = (df['TIME1'].dt.date >= start_date.date()) & \
+            (df['TIME1'].dt.date <= end_date.date()) & \
+            hour_mask & \
+            (df['ADDRESS'].isin(signals))
+            
         if location_selected == 'All':
-            mask &= df['P'] >= 0  # include all values of P for intersections
+            mask &= df['P'] >= 0  # Include all values of P for intersections
         else:
             if location_selected.startswith('Phase'):
                 phase_num = int(location_selected.split()[1])
                 mask &= df['P'] == phase_num
             else:
                 mask &= df['ADDRESS'] == location_selected
+
         df_filtered = df.loc[mask]
     else:
         start_date, end_date = st.slider(
@@ -613,43 +627,124 @@ def make_map2(df, signals, aggregation_method, location_selected, Dash_selected)
         mask = (df['TIME1'] >= start_date) & (df['TIME1'] <= end_date) & (df['ADDRESS'].isin(signals))
         df_filtered = df.loc[mask]
     
-    # Define and apply aggregation methods
-    agg_functions = {
-        'Hour': 'sum',
-        'Day': 'sum',
-        'Week': 'sum',
-        'Month': 'sum',
-        'Year': 'sum'
-    }
-    aggregation_function = agg_functions[aggregation_method]
-
-    # Aggregate data by location
     df_filtered.rename(columns={'LNG': 'LON'}, inplace=True)
-    df_agg = df_filtered.groupby(['LAT', 'LON', 'ADDRESS' , 'SIGNAL']).agg({'PED': aggregation_function}).reset_index()
     
+    # Define and apply aggregation methods
+    if Dash_selected == 'Recent data (last 1 year)':
+        aggregation_choices = {
+            'Average Daily': 'mean',
+            'Average Hourly': 'mean',
+            'Total': 'sum'
+        }
+    else:
+        aggregation_choices = {
+            'Average Daily': 'mean',
+            'Total': 'sum'
+        }
 
+    # Allow the user to select an aggregation method
+    selected_aggregation = st.selectbox(
+        "Select aggregation method:",
+        options=list(aggregation_choices.keys()),
+        index=0  # Default selection (first element in the dictionary)
+    )
+
+    # Determine the appropriate aggregation function and grouping based on the selected aggregation method
+    if selected_aggregation == 'Average Daily':
+        # Create a 'day' column from the 'TIME1' datetime column
+        df_filtered['day'] = df_filtered['TIME1'].dt.date
+
+        # Group by location, signal, and day, then sum the PEDs for each day
+        daily_sum = df_filtered.groupby(['LAT', 'LON', 'ADDRESS', 'SIGNAL', 'day']).agg({'PED': 'sum'}).reset_index()
+
+        # Now group by location and signal (without the day) to calculate the average of these daily sums
+        df_agg = daily_sum.groupby(['LAT', 'LON', 'ADDRESS', 'SIGNAL']).agg({'PED': 'mean'}).reset_index()
+    elif selected_aggregation == 'Average Hourly' and Dash_selected == 'Recent data (last 1 year)':
+        df_filtered['hour'] = df_filtered['TIME1'].dt.hour
+        # Group by hour to sum PED within each hour
+        hourly_sum = df_filtered.groupby(['LAT', 'LON', 'ADDRESS', 'SIGNAL', 'hour']).agg({'PED': 'sum'}).reset_index()
+
+        # Calculate the range of hours plus one to ensure we account for the full span of hours
+        hour_range = hourly_sum['hour'].max() - hourly_sum['hour'].min() + 1
+
+        # Group by location and signal to get the total sum of PEDs across all selected hours and then divide by the hour range
+        df_agg = hourly_sum.groupby(['LAT', 'LON', 'ADDRESS', 'SIGNAL']).agg({'PED': 'sum'}).reset_index()
+        df_agg['PED'] = df_agg['PED'] / hour_range
+    elif selected_aggregation == 'Total':
+        df_agg = df_filtered.groupby(['LAT', 'LON', 'ADDRESS', 'SIGNAL']).agg({'PED': 'sum'}).reset_index()
+    
     # Create color map
     unique_signals = df['SIGNAL'].unique().tolist()
     mean_lat = df['LAT'].mean()
     mean_lng = df['LNG'].mean()
     # Create a Folium map with specified width and height
-    m = folium.Map(location=[mean_lat, mean_lng],  zoom_start=13, tiles='https://api.mapbox.com/styles/v1/bashasvari/clhgx1yir00h901q1ecbt9165/tiles/256/{z}/{x}/{y}@2x?access_token=pk.eyJ1IjoiYmFzaGFzdmFyaSIsImEiOiJjbGVmaTdtMmIwcXkzM3Jxam9hb2pwZ3BoIn0.JmYank8e3bmQ7RmRiVdTIg',
+    m = folium.Map(location=[mean_lat, mean_lng],  zoom_start=13, tiles=None)
+    # Add custom tile layers
+    pedat_tiles = folium.TileLayer(
+        tiles='https://api.mapbox.com/styles/v1/bashasvari/clhgx1yir00h901q1ecbt9165/tiles/256/{z}/{x}/{y}@2x?access_token=pk.eyJ1IjoiYmFzaGFzdmFyaSIsImEiOiJjbGVmaTdtMmIwcXkzM3Jxam9hb2pwZ3BoIn0.JmYank8e3bmQ7RmRiVdTIg',
         attr='PEDAT map',
-        name='PEDAT')
-    
+        name='PEDAT',
+        overlay=False,
+        control=True
+    )
+    satellite = folium.TileLayer(
+        tiles='https://api.mapbox.com/styles/v1/bashasvari/cluvp5mkm000i01og0rbcgwmf/tiles/256/{z}/{x}/{y}@2x?access_token=pk.eyJ1IjoiYmFzaGFzdmFyaSIsImEiOiJjbGVmaTdtMmIwcXkzM3Jxam9hb2pwZ3BoIn0.JmYank8e3bmQ7RmRiVdTIg',
+        attr='Satellite',
+        name='Satellite Map',
+        overlay=False,
+        control=True
+    )
 
-    # Create a color scale based on PED values
+    # Add the PEDAT layer and show it by default
+    pedat_tiles.add_to(m)
+    satellite.add_to(m)
+
+    # Adding other tile layers but not showing them by default
+    folium.TileLayer('OpenStreetMap', name='Open Street Map', overlay=False, control=True).add_to(m)
+    folium.TileLayer('CartoDB dark_matter', name='CartoDB Dark Matter', overlay=False, control=True).add_to(m)
+    # Define available color scales
+    color_options = {
+        'YlOrRd 9': cm.linear.YlOrRd_09,
+        'PiYG 4': cm.linear.PiYG_04,
+        'RdBu 4': cm.linear.RdBu_04,
+        'Set1 3': cm.linear.Set1_03,
+        'RdYlGn 4': cm.linear.RdYlGn_04,
+        'Spectral 4': cm.linear.Spectral_04,
+        'BrBG 4': cm.linear.BrBG_04
+    }
+
+    # Allow the user to select a color scale
+    selected_color = st.selectbox(
+        'Select a color scale for the map:',
+        options=list(color_options.keys()),
+        index=0  # Default selection (first element in the dictionary)
+    )
+
+    # Get the colormap object based on user selection
     max_ped = df_agg['PED'].max()
     min_ped = df_agg['PED'].min()
-    colormap = linear.YlOrRd_09.scale(min_ped, max_ped)
+    colormap = color_options[selected_color].scale(min_ped, max_ped)
     colormap.caption = 'Pedestrian Count'
     colormap.add_to(m)
-    
-    # Constants for scaling 
-    base_radius = 4  # This is the base size for circles
-    scale_factor = 0.04  # This factor will scale the transformation to appropriate map units
-    # Square root scaling
-    df_agg['Scaled_RADIUS'] = np.sqrt(df_agg['PED']) * scale_factor
+
+    if selected_aggregation == 'Average Daily':
+        # Constants for scaling 
+        base_radius = 4  # This is the base size for circles
+        scale_factor = 0.04  # This factor will scale the transformation to appropriate map units
+        # Square root scaling
+        df_agg['Scaled_RADIUS'] = df_agg['PED'] * scale_factor
+    elif selected_aggregation == 'Average Hourly':
+        # Constants for scaling 
+        base_radius = 4  # This is the base size for circles
+        scale_factor = 0.2  # This factor will scale the transformation to appropriate map units
+        # Square root scaling
+        df_agg['Scaled_RADIUS'] = np.sqrt(df_agg['PED']) * scale_factor
+    elif selected_aggregation == 'Total':
+        # Constants for scaling 
+        base_radius = 4  # This is the base size for circles
+        scale_factor = 0.04  # This factor will scale the transformation to appropriate map units
+        # Square root scaling
+        df_agg['Scaled_RADIUS'] = np.sqrt(df_agg['PED']) * scale_factor
 
     # Adding circles with scaled radii
     for idx, row in df_agg.iterrows():
@@ -666,9 +761,8 @@ def make_map2(df, signals, aggregation_method, location_selected, Dash_selected)
     #sw = df[['LAT', 'LNG']].min().values.tolist()
     #ne = df[['LAT', 'LNG']].max().values.tolist()
     #m.fit_bounds([sw, ne])
+    folium.LayerControl().add_to(m)
     st_folium(m, width='80%', height=600)
-
-    
 
 # Define the Streamlit app
 def main():
