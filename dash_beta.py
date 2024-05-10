@@ -1568,12 +1568,12 @@ def main():
                 expander.write('''
                         "Pedestrian volume" is an estimate of pedestrian volume, specifically the estimated number of pedestrian crossings at an intersection. These estimated pedestrian volumes are based on pedestrian push-button data, obtained via high-resolution traffic signal controller log data from the Utah Department of Transportation's [Automated Traffic Signal Performance Measures System (ATSPM)](https://udottraffic.utah.gov/atspm/) system. [Research](https://rosap.ntl.bts.gov/view/dot/54924) conducted by the Singleton Transportation Lab at Utah State University has validated the use of pedestrian traffic signal data as a reasonably-accurate estimate of pedestrian volumes in Utah. This website was developed by the [Singleton Transportation Lab](https://engineering.usu.edu/cee/research/labs/patrick-singleton/index) in coordination and funded by the Utah Department of Transportation. 
                 ''')
-        hide_menu_style = """
-            <style>
+        #hide_menu_style = """
+            #<style>
             #MainMenu {visibility: hidden;}
-            </style>
-            """
-        st.markdown(hide_menu_style, unsafe_allow_html=True)
+           # </style>
+            #"""
+        #st.markdown(hide_menu_style, unsafe_allow_html=True)
 
     
 if __name__ == '__main__':
