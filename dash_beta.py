@@ -1,7 +1,7 @@
 # Pedestrian Volume Data Visualization Dashboard (PEDAT)
 # Author:   Amir Rafe (amir.rafe@usu.edu)
 # File:     dash_beta.py
-# Version:  1.0.14.beta  
+# Version:  1.0.15.beta  
 # About:    A streamlit webapp to visualize pedestrian volum data in Utah
 
 # Streamlit for web app functionality
@@ -500,7 +500,7 @@ def make_bar_chart3(df, signals, start_date, end_date, location, Dash_selected):
     fig8.update_layout(autosize=False, width=920, height=520)
     fig8.update_layout(template='plotly')
     fig8.write_image("fig5.png")
-
+    
     return fig_bar,df_agg2
 
 @st.cache_resource
@@ -553,13 +553,12 @@ def make_bar_chart4(df, signals, start_date, end_date, location, Dash_selected, 
     fig18.update_layout(autosize=False, width=920, height=520)
     fig18.update_layout(template='plotly')
     fig18.write_image("fig7.png")
-
     return fig_bar, df_agg
 
     
 @st.experimental_fragment
 def make_map2(df, signals, aggregation_method, location_selected, Dash_selected):
-       
+
     # Check if the 'TIME1' datetime objects are already timezone-aware
     if df['TIME1'].dt.tz is not None:
         # If they are, convert them to UTC (if they aren't already)
@@ -568,7 +567,7 @@ def make_map2(df, signals, aggregation_method, location_selected, Dash_selected)
         # If they are timezone-naive, assume they are UTC and localize accordingly
         df['TIME1'] = pd.to_datetime(df['TIME1']).dt.tz_localize('UTC')
 
-    # Now you have 'TIME1' as timezone-aware in UTC, you can strip the timezone if needed
+    # Now we have 'TIME1' as timezone-aware in UTC, you can strip the timezone if needed
     df['TIME1'] = df['TIME1'].dt.tz_localize(None)
 
     # Determine the date format based on dashboard selection
@@ -599,7 +598,7 @@ def make_map2(df, signals, aggregation_method, location_selected, Dash_selected)
             hour_mask = (df['TIME1'].dt.hour == start_hour)
         else:
             # Standard range filtering if different start and end hours
-            hour_mask = (df['TIME1'].dt.hour >= start_hour) & (df['TIME1'].dt.hour < end_hour)
+            hour_mask = (df['TIME1'].dt.hour >= start_hour) & (df['TIME1'].dt.hour <= end_hour)
 
         # Filter by date, hour, selected signals, and location
         mask = (df['TIME1'].dt.date >= start_date.date()) & \
@@ -632,137 +631,111 @@ def make_map2(df, signals, aggregation_method, location_selected, Dash_selected)
     # Define and apply aggregation methods
     if Dash_selected == 'Recent data (last 1 year)':
         aggregation_choices = {
-            'Average Daily': 'mean',
-            'Average Hourly': 'mean',
-            'Total': 'sum'
+            'Average Daily',
+            'Average Hourly',
+            'Total'
         }
     else:
         aggregation_choices = {
-            'Average Daily': 'mean',
-            'Total': 'sum'
+            'Average Daily',
+            'Total'
         }
 
     # Allow the user to select an aggregation method
     selected_aggregation = st.selectbox(
-        "Select aggregation method:",
-        options=list(aggregation_choices.keys()),
-        index=0  # Default selection (first element in the dictionary)
+        "Aggregation method:",
+        options=list(aggregation_choices),
+        index=None,
+        placeholder="Select aggregation method..."
     )
 
-    # Determine the appropriate aggregation function and grouping based on the selected aggregation method
-    if selected_aggregation == 'Average Daily':
-        # Create a 'day' column from the 'TIME1' datetime column
-        df_filtered['day'] = df_filtered['TIME1'].dt.date
+    if selected_aggregation is not None:
+        # Determine the appropriate aggregation function and grouping based on the selected aggregation method
+        if selected_aggregation == 'Average Daily':
+            # Group by location, signal, and day, then sum the PEDs for each day
+            daily_sum = df_filtered.groupby(['LAT', 'LON', 'ADDRESS', 'SIGNAL', pd.Grouper(key='TIME1', freq='1D')]).agg({'PED': 'sum'}).reset_index()
 
-        # Group by location, signal, and day, then sum the PEDs for each day
-        daily_sum = df_filtered.groupby(['LAT', 'LON', 'ADDRESS', 'SIGNAL', 'day']).agg({'PED': 'sum'}).reset_index()
+            # Now group by location and signal (without the day) to calculate the average of these daily sums
+            df_agg = daily_sum.groupby(['LAT', 'LON', 'ADDRESS', 'SIGNAL']).agg({'PED': 'mean'}).reset_index()
+        elif selected_aggregation == 'Average Hourly' and Dash_selected == 'Recent data (last 1 year)':
+            hourly_sum = df_filtered.groupby(['LAT', 'LON', 'ADDRESS', 'SIGNAL', pd.Grouper(key='TIME1', freq='1H')]).agg({'PED': 'sum'}).reset_index()
+            df_agg =  hourly_sum.groupby(['LAT', 'LON', 'ADDRESS', 'SIGNAL']).agg({'PED': 'mean'}).reset_index()
+        elif selected_aggregation == 'Total':
+            df_agg = df_filtered.groupby(['LAT', 'LON', 'ADDRESS', 'SIGNAL']).agg({'PED': 'sum'}).reset_index()
+        
+        # Create color map
+        unique_signals = df['SIGNAL'].unique().tolist()
+        mean_lat = df['LAT'].mean()
+        mean_lng = df['LNG'].mean()
+        # Create a Folium map with specified width and height
+        m = folium.Map(location=[mean_lat, mean_lng],  zoom_start=13, tiles=None)
+        # Add custom tile layers
+        pedat_tiles = folium.TileLayer(
+            tiles='https://api.mapbox.com/styles/v1/bashasvari/clhgx1yir00h901q1ecbt9165/tiles/256/{z}/{x}/{y}@2x?access_token=pk.eyJ1IjoiYmFzaGFzdmFyaSIsImEiOiJjbGVmaTdtMmIwcXkzM3Jxam9hb2pwZ3BoIn0.JmYank8e3bmQ7RmRiVdTIg',
+            attr='PEDAT map',
+            name='PEDAT',
+            overlay=False,
+            control=True
+        )
+        satellite = folium.TileLayer(
+            tiles='https://api.mapbox.com/styles/v1/bashasvari/cluvp5mkm000i01og0rbcgwmf/tiles/256/{z}/{x}/{y}@2x?access_token=pk.eyJ1IjoiYmFzaGFzdmFyaSIsImEiOiJjbGVmaTdtMmIwcXkzM3Jxam9hb2pwZ3BoIn0.JmYank8e3bmQ7RmRiVdTIg',
+            attr='Satellite',
+            name='Satellite Map',
+            overlay=False,
+            control=True
+        )
 
-        # Now group by location and signal (without the day) to calculate the average of these daily sums
-        df_agg = daily_sum.groupby(['LAT', 'LON', 'ADDRESS', 'SIGNAL']).agg({'PED': 'mean'}).reset_index()
-    elif selected_aggregation == 'Average Hourly' and Dash_selected == 'Recent data (last 1 year)':
-        df_filtered['hour'] = df_filtered['TIME1'].dt.hour
-        # Group by hour to sum PED within each hour
-        hourly_sum = df_filtered.groupby(['LAT', 'LON', 'ADDRESS', 'SIGNAL', 'hour']).agg({'PED': 'sum'}).reset_index()
+        # Add the PEDAT layer and show it by default
+        pedat_tiles.add_to(m)
+        satellite.add_to(m)
 
-        # Calculate the range of hours plus one to ensure we account for the full span of hours
-        hour_range = hourly_sum['hour'].max() - hourly_sum['hour'].min() + 1
+        # Adding other tile layers but not showing them by default
+        folium.TileLayer('OpenStreetMap', name='Open Street Map', overlay=False, control=True).add_to(m)
+        folium.TileLayer('CartoDB dark_matter', name='CartoDB Dark Matter', overlay=False, control=True).add_to(m)
+        # Get the colormap object based on user selection
+        max_ped = df_agg['PED'].max()
+        min_ped = df_agg['PED'].min()
+        colormap = cm.linear.Spectral_04.scale(min_ped, max_ped)
+        colormap.caption = 'Pedestrian Count'
+        colormap.add_to(m)
 
-        # Group by location and signal to get the total sum of PEDs across all selected hours and then divide by the hour range
-        df_agg = hourly_sum.groupby(['LAT', 'LON', 'ADDRESS', 'SIGNAL']).agg({'PED': 'sum'}).reset_index()
-        df_agg['PED'] = df_agg['PED'] / hour_range
-    elif selected_aggregation == 'Total':
-        df_agg = df_filtered.groupby(['LAT', 'LON', 'ADDRESS', 'SIGNAL']).agg({'PED': 'sum'}).reset_index()
-    
-    # Create color map
-    unique_signals = df['SIGNAL'].unique().tolist()
-    mean_lat = df['LAT'].mean()
-    mean_lng = df['LNG'].mean()
-    # Create a Folium map with specified width and height
-    m = folium.Map(location=[mean_lat, mean_lng],  zoom_start=13, tiles=None)
-    # Add custom tile layers
-    pedat_tiles = folium.TileLayer(
-        tiles='https://api.mapbox.com/styles/v1/bashasvari/clhgx1yir00h901q1ecbt9165/tiles/256/{z}/{x}/{y}@2x?access_token=pk.eyJ1IjoiYmFzaGFzdmFyaSIsImEiOiJjbGVmaTdtMmIwcXkzM3Jxam9hb2pwZ3BoIn0.JmYank8e3bmQ7RmRiVdTIg',
-        attr='PEDAT map',
-        name='PEDAT',
-        overlay=False,
-        control=True
-    )
-    satellite = folium.TileLayer(
-        tiles='https://api.mapbox.com/styles/v1/bashasvari/cluvp5mkm000i01og0rbcgwmf/tiles/256/{z}/{x}/{y}@2x?access_token=pk.eyJ1IjoiYmFzaGFzdmFyaSIsImEiOiJjbGVmaTdtMmIwcXkzM3Jxam9hb2pwZ3BoIn0.JmYank8e3bmQ7RmRiVdTIg',
-        attr='Satellite',
-        name='Satellite Map',
-        overlay=False,
-        control=True
-    )
+        if selected_aggregation == 'Average Daily':
+            # Constants for scaling 
+            base_radius = 4  # This is the base size for circles
+            scale_factor = 0.04  # This factor will scale the transformation to appropriate map units
+            # Square root scaling
+            df_agg['Scaled_RADIUS'] = df_agg['PED'] * scale_factor
+        elif selected_aggregation == 'Average Hourly':
+            # Constants for scaling 
+            base_radius = 4  # This is the base size for circles
+            scale_factor = 2  # This factor will scale the transformation to appropriate map units
+            # Square root scaling
+            df_agg['Scaled_RADIUS'] = np.sqrt(df_agg['PED']) * scale_factor
+        elif selected_aggregation == 'Total':
+            # Constants for scaling 
+            base_radius = 4  # This is the base size for circles
+            scale_factor = 0.04  # This factor will scale the transformation to appropriate map units
+            # Square root scaling
+            df_agg['Scaled_RADIUS'] = np.sqrt(df_agg['PED']) * scale_factor
 
-    # Add the PEDAT layer and show it by default
-    pedat_tiles.add_to(m)
-    satellite.add_to(m)
+        # Adding circles with scaled radii
+        for idx, row in df_agg.iterrows():
+            folium.CircleMarker(
+                location=[row['LAT'], row['LON']],
+                radius=max(base_radius, row['Scaled_RADIUS']),  # Ensure a minimum size for visibility
+                popup=folium.Popup(f"<div style='width:250px;'><strong>Address:</strong><br>{row['ADDRESS']}<br><strong>Pedestrian Count:</strong><br>{round(row['PED'],0):,.0f}</div>", max_width=250),
+                color=colormap(row['PED']),
+                fill=True,
+                fill_opacity=0.7,
+                fill_color=colormap(row['PED'])
+            ).add_to(m)
+        # Use streamlit_folium for displaying the map with width and height
+        #sw = df[['LAT', 'LNG']].min().values.tolist()
+        #ne = df[['LAT', 'LNG']].max().values.tolist()
+        #m.fit_bounds([sw, ne])
+        folium.LayerControl().add_to(m)
+        st_folium(m, width='80%', height=600)
 
-    # Adding other tile layers but not showing them by default
-    folium.TileLayer('OpenStreetMap', name='Open Street Map', overlay=False, control=True).add_to(m)
-    folium.TileLayer('CartoDB dark_matter', name='CartoDB Dark Matter', overlay=False, control=True).add_to(m)
-    # Define available color scales
-    color_options = {
-        'YlOrRd 9': cm.linear.YlOrRd_09,
-        'PiYG 4': cm.linear.PiYG_04,
-        'RdBu 4': cm.linear.RdBu_04,
-        'Set1 3': cm.linear.Set1_03,
-        'RdYlGn 4': cm.linear.RdYlGn_04,
-        'Spectral 4': cm.linear.Spectral_04,
-        'BrBG 4': cm.linear.BrBG_04
-    }
-
-    # Allow the user to select a color scale
-    selected_color = st.selectbox(
-        'Select a color scale for the map:',
-        options=list(color_options.keys()),
-        index=0  # Default selection (first element in the dictionary)
-    )
-
-    # Get the colormap object based on user selection
-    max_ped = df_agg['PED'].max()
-    min_ped = df_agg['PED'].min()
-    colormap = color_options[selected_color].scale(min_ped, max_ped)
-    colormap.caption = 'Pedestrian Count'
-    colormap.add_to(m)
-
-    if selected_aggregation == 'Average Daily':
-        # Constants for scaling 
-        base_radius = 4  # This is the base size for circles
-        scale_factor = 0.04  # This factor will scale the transformation to appropriate map units
-        # Square root scaling
-        df_agg['Scaled_RADIUS'] = df_agg['PED'] * scale_factor
-    elif selected_aggregation == 'Average Hourly':
-        # Constants for scaling 
-        base_radius = 4  # This is the base size for circles
-        scale_factor = 0.2  # This factor will scale the transformation to appropriate map units
-        # Square root scaling
-        df_agg['Scaled_RADIUS'] = np.sqrt(df_agg['PED']) * scale_factor
-    elif selected_aggregation == 'Total':
-        # Constants for scaling 
-        base_radius = 4  # This is the base size for circles
-        scale_factor = 0.04  # This factor will scale the transformation to appropriate map units
-        # Square root scaling
-        df_agg['Scaled_RADIUS'] = np.sqrt(df_agg['PED']) * scale_factor
-
-    # Adding circles with scaled radii
-    for idx, row in df_agg.iterrows():
-        folium.CircleMarker(
-            location=[row['LAT'], row['LON']],
-            radius=max(base_radius, row['Scaled_RADIUS']),  # Ensure a minimum size for visibility
-            popup=folium.Popup(f"<div style='width:250px;'><strong>Address:</strong><br>{row['ADDRESS']}<br><strong>Pedestrian Count:</strong><br>{round(row['PED'])}</div>", max_width=250),
-            color=colormap(row['PED']),
-            fill=True,
-            fill_opacity=0.7,
-            fill_color=colormap(row['PED'])
-        ).add_to(m)
-    # Use streamlit_folium for displaying the map with width and height
-    #sw = df[['LAT', 'LNG']].min().values.tolist()
-    #ne = df[['LAT', 'LNG']].max().values.tolist()
-    #m.fit_bounds([sw, ne])
-    folium.LayerControl().add_to(m)
-    st_folium(m, width='80%', height=600)
 
 # Define the Streamlit app
 def main():
@@ -1067,7 +1040,8 @@ def main():
         dt_str = start_date.strftime("%b %d, %Y")
         dt_str2 = end_date.strftime("%b %d, %Y")
         start_date2 = pd.Timestamp(start_date).tz_localize('UTC')
-        end_date2 = pd.Timestamp(end_date).tz_localize('UTC')
+        # Set end date to the end of the day to include the full last day
+        end_date2 = pd.Timestamp(end_date).tz_localize('UTC') + pd.Timedelta(days=1) - pd.Timedelta(seconds=1)
         # Format the metric values
         # Filter the DataFrame based on the selected date range and location
         if Dash_selected == 'Recent data (last 1 year)':
@@ -1318,8 +1292,6 @@ def main():
         with st.expander("Expand"):
             make_map2(filtered_df, selected_signals ,aggregation_method_selected , location_selected, Dash_selected)
             
-            #keplergl_static(map_2)
-            
         
         # Data section
         st.sidebar.markdown("[Data](#data)")
@@ -1568,12 +1540,6 @@ def main():
                 expander.write('''
                         "Pedestrian volume" is an estimate of pedestrian volume, specifically the estimated number of pedestrian crossings at an intersection. These estimated pedestrian volumes are based on pedestrian push-button data, obtained via high-resolution traffic signal controller log data from the Utah Department of Transportation's [Automated Traffic Signal Performance Measures System (ATSPM)](https://udottraffic.utah.gov/atspm/) system. [Research](https://rosap.ntl.bts.gov/view/dot/54924) conducted by the Singleton Transportation Lab at Utah State University has validated the use of pedestrian traffic signal data as a reasonably-accurate estimate of pedestrian volumes in Utah. This website was developed by the [Singleton Transportation Lab](https://engineering.usu.edu/cee/research/labs/patrick-singleton/index) in coordination and funded by the Utah Department of Transportation. 
                 ''')
-        hide_menu_style = """
-            <style>
-            #MainMenu {visibility: hidden;}
-            </style>
-            """
-        st.markdown(hide_menu_style, unsafe_allow_html=True)
 
     
 if __name__ == '__main__':
