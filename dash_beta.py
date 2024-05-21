@@ -1,7 +1,7 @@
 # Pedestrian Volume Data Visualization Dashboard (PEDAT)
 # Author:   Amir Rafe (amir.rafe@usu.edu)
 # File:     dash_beta.py
-# Version:  1.0.15.beta  
+# Version:  1.0.16.beta  
 # About:    A streamlit webapp to visualize pedestrian volum data in Utah
 
 # Streamlit for web app functionality
@@ -24,7 +24,6 @@ import matplotlib.pyplot as plt
 import matplotlib.colors
 import folium
 from folium.plugins import Draw, MarkerCluster, Search, FastMarkerCluster
-from keplergl import KeplerGl
 import pydeck as pdk
 import branca.colormap as cm
 from branca.colormap import linear
@@ -63,7 +62,6 @@ import kaleido
 # Setting default scale for kaleido
 pio.kaleido.scope.default_scale = 2
 
-
 # Create API client.
 credentials = service_account.Credentials.from_service_account_info(
     st.secrets["gcp_service_account"]
@@ -85,7 +83,6 @@ SELECT *
 FROM `decent-digit-387716.pedat_dataset.pedatdaily`
 WHERE ADDRESS IN UNNEST(@selected_signals)
 """
-
 
 # Define the title
 title = 'Pedestrian Volume Data Visualization Dashboard'
@@ -149,7 +146,6 @@ def make_chart(df, signals, start_date, end_date, aggregation_method, location, 
         df_filtered = df[(df['TIME1'] >= pd.to_datetime(start_date).tz_localize('UTC')) & (df['TIME1'] <= pd.to_datetime(end_date).tz_localize('UTC')) & (df['ADDRESS'].isin(signals))]
     else:
         df_filtered = df[(df['TIME1'] >= start_date) & (df['TIME1'] <= end_date) & (df['ADDRESS'].isin(signals))]
-    
 
     # Aggregate the data
     if location == 'All':
@@ -554,7 +550,6 @@ def make_bar_chart4(df, signals, start_date, end_date, location, Dash_selected, 
     fig18.update_layout(template='plotly')
     fig18.write_image("fig7.png")
     return fig_bar, df_agg
-
     
 @st.experimental_fragment
 def make_map2(df, signals, aggregation_method, location_selected, Dash_selected):
@@ -667,11 +662,13 @@ def make_map2(df, signals, aggregation_method, location_selected, Dash_selected)
         unique_signals = df['SIGNAL'].unique().tolist()
         mean_lat = df['LAT'].mean()
         mean_lng = df['LNG'].mean()
+
         # Create a Folium map with specified width and height
         m = folium.Map(location=[mean_lat, mean_lng],  zoom_start=13, tiles=None)
+        
         # Add custom tile layers
         pedat_tiles = folium.TileLayer(
-            tiles='https://api.mapbox.com/styles/v1/bashasvari/clhgx1yir00h901q1ecbt9165/tiles/256/{z}/{x}/{y}@2x?access_token=pk.eyJ1IjoiYmFzaGFzdmFyaSIsImEiOiJjbGVmaTdtMmIwcXkzM3Jxam9hb2pwZ3BoIn0.JmYank8e3bmQ7RmRiVdTIg',
+            tiles='https://api.mapbox.com/styles/v1/bashasvari/clwb9hhew005201pp36qd2b8y/tiles/256/{z}/{x}/{y}@2x?access_token=pk.eyJ1IjoiYmFzaGFzdmFyaSIsImEiOiJjbGVmaTdtMmIwcXkzM3Jxam9hb2pwZ3BoIn0.JmYank8e3bmQ7RmRiVdTIg',
             attr='PEDAT map',
             name='PEDAT',
             overlay=False,
@@ -729,10 +726,7 @@ def make_map2(df, signals, aggregation_method, location_selected, Dash_selected)
                 fill_opacity=0.7,
                 fill_color=colormap(row['PED'])
             ).add_to(m)
-        # Use streamlit_folium for displaying the map with width and height
-        #sw = df[['LAT', 'LNG']].min().values.tolist()
-        #ne = df[['LAT', 'LNG']].max().values.tolist()
-        #m.fit_bounds([sw, ne])
+
         folium.LayerControl().add_to(m)
         st_folium(m, width='80%', height=600)
 
@@ -745,7 +739,6 @@ def main():
     st.title("Pedestrian Volume in Utah")
     st.markdown(text1)
     st.markdown(text2)
-    
     st.markdown("""
             <style>
                .block-container {
@@ -770,9 +763,7 @@ def main():
     # Display USU in the sidebar
     logo_path = 'images/logo-1.png'  
     st.sidebar.image(logo_path , width=240)
-
     st.sidebar.markdown(f'[**Singleton Transportation Lab**](https://engineering.usu.edu/cee/research/labs/patrick-singleton/index)')
-
     expander2 = st.sidebar.expander("**How to use**")
     with expander2:
         expander2.write('''
@@ -801,12 +792,10 @@ def main():
     df3 = selected_data
     a = df3['ADDRESS'].tolist()
     default_address = [a[1]]
-    icon_image = 'images/ts_small.png'
-    icon_size = (7, 14)
 
     # Create a custom TileLayer
     pedat_tiles = folium.TileLayer(
-        tiles='https://api.mapbox.com/styles/v1/bashasvari/clhgx1yir00h901q1ecbt9165/tiles/256/{z}/{x}/{y}@2x?access_token=pk.eyJ1IjoiYmFzaGFzdmFyaSIsImEiOiJjbGVmaTdtMmIwcXkzM3Jxam9hb2pwZ3BoIn0.JmYank8e3bmQ7RmRiVdTIg',
+        tiles='https://api.mapbox.com/styles/v1/bashasvari/clwb9hhew005201pp36qd2b8y/tiles/256/{z}/{x}/{y}@2x?access_token=pk.eyJ1IjoiYmFzaGFzdmFyaSIsImEiOiJjbGVmaTdtMmIwcXkzM3Jxam9hb2pwZ3BoIn0.JmYank8e3bmQ7RmRiVdTIg',
         attr='PEDAT map',
         name='PEDAT',
         overlay=False,
@@ -858,7 +847,41 @@ def main():
         search_label="address"
     ).add_to(m)
 
-    
+    # Define a style function for the GeoJson layer
+    region_colors = {
+        "Region 1": "red",
+        "Region 2": "green",
+        "Region 3": "blue",
+        "Region 4": "purple"
+    }
+
+    def style_function(feature):
+        region_name = feature['properties']['NAME']  
+        return {
+            'color': region_colors.get(region_name, 'black'),  # Default to black if the region is not found
+            'weight': 1,
+            'fillOpacity': 0.05
+        }
+
+    # Add all regions as a single GeoJson layer
+    geojson_path = "data/UDOT_Regions.geojson"
+    with open(geojson_path) as f:
+        geojson_data = json.load(f)
+
+    def popup_function(feature):
+        region_name = feature['properties']['NAME']
+        return folium.Popup(f"<div style='width: 200px;'><strong>{region_name}</strong></div>", max_width=250)
+
+    # Create a GeoJson layer with popups
+    regions_layer = folium.GeoJson(
+        geojson_data,
+        name='UDOT Regions',
+        style_function=style_function,
+        popup=folium.GeoJsonPopup(fields=['NAME'], aliases=[''], labels=True, style='font-size: 12px'),
+        show=False  # Ensure the layer is initially hidden
+    )
+    regions_layer.add_to(m)
+
     df3['Address'] = df3['ADDRESS'].str.replace(r'^\d+\s*--\s*', '', regex=True)
     # Add custom icons
     callback = """
@@ -1042,7 +1065,6 @@ def main():
         start_date2 = pd.Timestamp(start_date).tz_localize('UTC')
         # Set end date to the end of the day to include the full last day
         end_date2 = pd.Timestamp(end_date).tz_localize('UTC') + pd.Timedelta(days=1) - pd.Timedelta(seconds=1)
-        # Format the metric values
         # Filter the DataFrame based on the selected date range and location
         if Dash_selected == 'Recent data (last 1 year)':
             mask = (df['TIME1'] >= start_date2) & (df['TIME1'] <= end_date2)
@@ -1070,7 +1092,6 @@ def main():
         col2.metric("**Selected locations**", num_signals_formatted)
         col3.metric("**Start date**" , dt_str)
         col4.metric("**End date**" , dt_str2)
-
 
         selected_signals = st.session_state.selected_signals or default_address
 
@@ -1292,7 +1313,6 @@ def main():
         with st.expander("Expand"):
             make_map2(filtered_df, selected_signals ,aggregation_method_selected , location_selected, Dash_selected)
             
-        
         # Data section
         st.sidebar.markdown("[Data](#data)")
         st.subheader('**Data**')
@@ -1417,7 +1437,6 @@ def main():
 
                 # Add a page
                 pdf.add_page()
-                
 
                 # Add the logo to the first page after the first add_page() call
                 pdf.image('images/logo.png', x=10, y=10, w=33/2)
@@ -1429,7 +1448,6 @@ def main():
                 # Add a sample text
                 pdf.set_font('Arial', '', 12)
                 pdf.multi_cell(0, 6, "This report provides data and visualizations of pedestrian volume at various locations in Utah. Pedestrian volume is an estimate of pedestrian crossing volume at an intersection, currently based on pedestrian push-button presses at traffic signals.")
-
 
                 # Add selected signals
                 pdf.set_font('Arial', 'B', 14)
@@ -1540,7 +1558,6 @@ def main():
                 expander.write('''
                         "Pedestrian volume" is an estimate of pedestrian volume, specifically the estimated number of pedestrian crossings at an intersection. These estimated pedestrian volumes are based on pedestrian push-button data, obtained via high-resolution traffic signal controller log data from the Utah Department of Transportation's [Automated Traffic Signal Performance Measures System (ATSPM)](https://udottraffic.utah.gov/atspm/) system. [Research](https://rosap.ntl.bts.gov/view/dot/54924) conducted by the Singleton Transportation Lab at Utah State University has validated the use of pedestrian traffic signal data as a reasonably-accurate estimate of pedestrian volumes in Utah. This website was developed by the [Singleton Transportation Lab](https://engineering.usu.edu/cee/research/labs/patrick-singleton/index) in coordination and funded by the Utah Department of Transportation. 
                 ''')
-
     
 if __name__ == '__main__':
     main()
