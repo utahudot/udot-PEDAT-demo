@@ -738,22 +738,6 @@ def main():
     st.title("Pedestrian Volume in Utah")
     st.markdown(text1)
     st.markdown(text2)
-    st.markdown("""
-            <style>
-               .block-container {
-                    padding-top: 1rem;
-                    padding-bottom: 0rem;
-                }
-            </style>
-            """, unsafe_allow_html=True)
-    
-    st.markdown("""
-    <style>
-        .css-6qob1r {
-        margin-top: -75px;
-        }
-    </style>
-    """, unsafe_allow_html=True)
 
     # Display UDOT logo in the sidebar
     udot_path = 'images/UDOT.png' 
