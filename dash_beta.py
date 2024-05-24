@@ -757,13 +757,11 @@ def main():
 
     # Display UDOT logo in the sidebar
     udot_path = 'images/UDOT.png' 
-    #st.sidebar.image(udot_path , width=265)
-    st.logo(udot_path)
+    st.sidebar.image(udot_path , width=265)
     st.sidebar.write("")
     # Display USU in the sidebar
     logo_path = 'images/logo-1.png'  
-    #st.sidebar.image(logo_path , width=240)
-    st.logo(logo_path)
+    st.sidebar.image(logo_path , width=240)
     st.sidebar.markdown(f'[**Singleton Transportation Lab**](https://engineering.usu.edu/cee/research/labs/patrick-singleton/index)')
     expander2 = st.sidebar.expander("**How to use**")
     with expander2:
