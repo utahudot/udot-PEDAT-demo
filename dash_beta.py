@@ -1,7 +1,7 @@
 # Pedestrian Volume Data Visualization Dashboard (PEDAT)
 # Author:   Amir Rafe (amir.rafe@usu.edu)
 # File:     dash_beta.py
-# Version:  1.0.16.beta  
+# Version:  1.0.17.beta  
 # About:    A streamlit webapp to visualize pedestrian volum data in Utah
 
 # Streamlit for web app functionality
