@@ -757,7 +757,8 @@ def main():
 
     # Display UDOT logo in the sidebar
     udot_path = 'images/UDOT.png' 
-    st.sidebar.image(udot_path , width=265)
+    #st.sidebar.image(udot_path , width=265)
+    st.logo(udot_path)
     st.sidebar.write("")
     # Display USU in the sidebar
     logo_path = 'images/logo-1.png'  
