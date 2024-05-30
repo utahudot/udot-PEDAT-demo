@@ -13,8 +13,8 @@ reportlab
 fpdf2
 imgkit
 kaleido
-keplergl
-streamlit-keplergl
-streamlit-folium
+streamlit-folium==0.19.1
 db-dtypes
 pytz
+branca==0.7.1
+
